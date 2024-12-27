@@ -1,0 +1,77 @@
+server_configurations:
+  prometheus:
+    server:
+      address: "192.168.2.128:9090"
+      timeout: 10s
+
+monitoring_targets:
+  cAdvisor_metrics:
+    queries:
+    - name: container_task_state
+      query: max_over_time(container_tasks_state{name=~"nxf-.*"}[60s])
+
+    - name: container_start_time
+      query: max_over_time(container_start_time_seconds{name=~"nxf-.*"}[10s])
+
+    - name: container_blkio_device_usage_total
+      query: container_blkio_device_usage_total{name=~"nxf-.*"}
+
+    - name: container_cpu_usage_seconds_total
+      query: container_cpu_usage_seconds_total{name=~"nxf-.*"}
+
+    - name: container_cpu_load_average_10s
+      query: container_cpu_load_average_10s{name=~"nxf-.*"}
+
+    - name: container_fs_io_current
+      query: container_fs_io_current{name=~"nxf-.*"}
+
+    - name: container_fs_io_time_seconds_total
+      query: container_fs_io_time_seconds_total{name=~"nxf-.*"}
+
+    - name: container_fs_io_time_weighted_seconds_total
+      query: container_fs_io_time_weighted_seconds_total{name=~"nxf-.*"}
+
+    - name: container_fs_writes_total
+      query: container_fs_writes_total{name=~"nxf-.*"}
+
+    - name: container_fs_reads_total
+      query: container_fs_reads_total{name=~"nxf-.*"}
+
+    - name: container_fs_reads_bytes_total
+      query: container_fs_reads_bytes_total{name=~"nxf-.*"}
+
+    - name: container_fs_writes_bytes_total
+      query: container_fs_writes_bytes_total{name=~"nxf-.*"}
+
+    - name: container_fs_limit_bytes
+      query: container_fs_limit_bytes{name=~"nxf-.*"}[100s]
+
+    - name: container_memory_failcnt
+      query: container_memory_failcnt{name=~"nxf-.*"}
+
+    - name: container_memory_failures_total
+      query: container_memory_failures_total{name=~"nxf-.*"}
+
+    - name: container_memory_rss
+      query: container_memory_rss{name=~"nxf-.*"}
+
+    - name: container_memory_usage_bytes
+      query: container_memory_usage_bytes{name=~"nxf-.*"}
+
+    - name: container_memory_working_set_bytes
+      query: container_memory_working_set_bytes{name=~"nxf-.*"}
+
+    - name: container_network_receive_bytes_total
+      query: container_network_receive_bytes_total{name=~"nxf-.*"}
+
+    - name: container_network_receive_packets_dropped_total
+      query: container_network_receive_packets_dropped_total{name=~"nxf-.*"}
+
+    - name: container_network_receive_packets_total
+      query: container_network_receive_packets_total{name=~"nxf-.*"}
+
+    - name: container_network_transmit_bytes_total
+      query: container_network_transmit_bytes_total{name=~"nxf-.*"}
+
+    - name: container_network_transmit_errors_total
+      query: container_network_transmit_errors_total{name=~"nxf-.*"}
