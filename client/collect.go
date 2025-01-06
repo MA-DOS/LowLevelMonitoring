@@ -1,26 +1,66 @@
 package client
 
 import (
-	"time"
+	"sync"
 
+	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/common/model"
+	"github.com/sirupsen/logrus"
 )
 
-type RecordingRule struct {
-	Name           string         `json:"name"`
-	Query          string         `json:"query"`
-	Labels         model.LabelSet `json:"labels,omitempty"`
-	Health         RuleHealth     `json:"health"`
-	LastError      string         `json:"lastError,omitempty"`
-	EvaluationTime float64        `json:"evaluationTime"`
-	LastEvaluation time.Time      `json:"lastEvaluation"`
+// Defines function type for Prometheus Client.
+// Used to call FetchMonitoringTargets with the client configuration.
+type PrometheusClient func(c *Config) (api.Client, error)
+
+// Defines function type to consolidate init of client and queries.
+// Used to call ShootQuery with the client configuration.
+type PrometheusRequest func(client api.Client, query string)
+
+// Function type for the queries and the actual request.
+// Used so that in main only ScheduleMonitoring is called.
+type MonitorQuery func(queries map[string][]string)
+
+// Function to take in client configuration and queries to fetch monitoring targets in a thread.
+func ShootQueries(c *Config, queries map[string][]string) (map[string][]model.Value, error) {
+	results := make(map[string][]model.Value)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	// Debugging just for fun
+	threadCounter := 0
+
+	for metric, querySlices := range queries {
+		for _, query := range querySlices {
+			wg.Add(1)
+			threadCounter++
+			go func(metric, query string) {
+				defer wg.Done()
+				client, err := NewFetchClient(c)
+				if err != nil {
+					logrus.Error("Error creating fetch client", err)
+					return
+				}
+				fetcher, err := FetchMonitoringTargets(client, query)
+				if err != nil {
+					logrus.Error("Error fetching monitoring targets", err)
+					return
+				}
+				mu.Lock()
+				results[metric] = append(results[metric], fetcher)
+				mu.Unlock()
+			}(metric, query)
+		}
+	}
+	wg.Wait()
+	logrus.Info("Amount of Threads: ", threadCounter)
+	logrus.Info("Results: ", results)
+	return results, nil
 }
 
-func (r *RecordingRule) UnmarshalJSON(b []byte) error
-
-type RuleGroup struct {
-	Name     string  `json:"name"`
-	File     string  `json:"file"`
-	Interval float64 `json:"interval"`
-	Rules    Rules   `json:"rules"`
+func ScheduleMonitoring(c *Config, cfp string) error {
+	_, err := ShootQueries(c, AggregateQueries(ReadMonitoringConfiguration(cfp)))
+	if err != nil {
+		logrus.Error("Error shooting queries: ", err)
+		return err
+	}
+	return nil
 }

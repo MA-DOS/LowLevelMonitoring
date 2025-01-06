@@ -2,70 +2,95 @@ package client
 
 import (
 	"context"
-	"net"
-	"net/http"
-	"net/url"
 	"os"
 	"time"
 
+	"github.com/prometheus/client_golang/api"
+	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
+	"github.com/prometheus/common/model"
+	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
 
-var configFilePath = "../config/config.yml"
-
-// DefaultRoundTripper is the default RoundTripper used by the Client.
-var DefaultRoundTripper http.RoundTripper = &http.Transport{
-	Proxy: http.ProxyFromEnvironment,
-	DialContext: (&net.Dialer{
-		Timeout:   30 * time.Second,
-		KeepAlive: 30 * time.Second,
-	}).DialContext,
-	TLSHandshakeTimeout: 10 * time.Second,
+// Configurations structures.
+type TargetServer struct {
+	Address       string `yaml:"address"`
+	Timeout       string `yaml:"timeout"`
+	FetchInterval int    `yaml:"interval"`
 }
 
-// Client is the interface used to interact with a Prometheus server.
-type Client interface {
-	URL(ep string, args map[string]string) *url.URL
-	Do(context.Context, *http.Request) (*http.Response, []byte, error)
+type Prometheus struct {
+	TargetServer TargetServer `yaml:"target_server"`
 }
 
-type ServerConfig struct {
-	Address string `yaml:"address"`
+type ServerConfigurations struct {
+	Prometheus Prometheus `yaml:"prometheus"`
+	ConfigPath string     `yaml:"config_path"`
 }
-
-// Config contains the configuration for the Client.
 type Config struct {
-	// The address of the Prometheus to connect to.
-	Address string
-
-	// Client is used by the Client to drive HTTP requests. If not provided,
-	// a new one based on the provided RoundTripper (or DefaultRoundTripper) will be used.
-	Client *http.Client
-
-	// RoundTripper is used by the Client to drive HTTP requests. If not
-	// provided, DefaultRoundTripper will be used.
-	RoundTripper http.RoundTripper
-
-	Server ServerConfig `yaml:"server"`
+	ServerConfigurations ServerConfigurations `yaml:"server_configurations"`
+	MonitoringTargets    MonitoringTargets    `yaml:"monitoring_targets"`
 }
 
-// NewClient returns a new Client that connects to the provided address.
-func NewClient(cfg Config) (Client, error) {
-	// Implementation goes here
-	return nil, nil
+type MonitoringTargets struct {
+	TaskMetadata MonitoringTarget `yaml:"task_metadata"`
+	CPU          MonitoringTarget `yaml:"cpu"`
+	Memory       MonitoringTarget `yaml:"memory"`
+	Disk         MonitoringTarget `yaml:"disk"`
+	Network      MonitoringTarget `yaml:"network"`
+	Energy       MonitoringTarget `yaml:"energy"`
 }
 
-func LoadConfig(configFilePath string) (*Config, error) {
-	file, err := os.OpenFile(configFilePath, os.O_RDONLY, 0644)
+type MonitoringTarget struct {
+	Enabled bool     `yaml:"enabled"`
+	Metrics []Metric `yaml:"metrics"`
+}
+
+type Metric struct {
+	Name  string `yaml:"name"`
+	Query string `yaml:"query"`
+}
+
+// LoadConfig loads the configuration from the file and returns implicit the prometheus configuration.
+func NewConfig(configFilePath string) (*Config, error) {
+	// Read in the config yml.
+	data, err := os.ReadFile(configFilePath)
 	if err != nil {
-		return &Config{}, err
+		logrus.Error("Error reading config file: ", err)
 	}
-	defer file.Close()
 
 	var config Config
-	decoder := yaml.NewDecoder(file)
-	if err := decoder.Decode(&config); err != nil {
-		return nil, err
+	err = yaml.Unmarshal(data, &config)
+	if err != nil {
+		logrus.Error("Error unmarshalling the config file: ", err)
 	}
 	return &config, nil
+}
+
+func NewFetchClient(c *Config) (api.Client, error) {
+	client, err := api.NewClient(api.Config{
+		Address: c.ServerConfigurations.Prometheus.TargetServer.Address,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
+// Using Prometheus API to fetch the monitoring targets.
+func FetchMonitoringTargets(client api.Client, q string) (model.Value, error) {
+	v1api := v1.NewAPI(client)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, warnings, err := v1api.Query(ctx, q, time.Now())
+	if err != nil {
+		logrus.Errorf("Error querying Prometheus: %v", err)
+		return nil, err
+	}
+	if len(warnings) > 0 {
+		logrus.Warnf("Warnings: %v", warnings)
+	}
+	return result, nil
 }

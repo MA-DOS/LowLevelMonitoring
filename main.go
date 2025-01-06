@@ -1,27 +1,29 @@
 package main
 
 import (
-	"github.com/sirupsen/logrus"
+	"time"
 
 	"github.com/MA-DOS/LowLevelMonitoring/client"
+	"github.com/sirupsen/logrus"
 )
 
-const configFilePath = "../config/config.yaml"
+const configFilePath = "config/config.yml"
 
 func main() {
-	// Load the configuration from the file for the client.
-	config, err := client.LoadConfig(configFilePath)
+	// Load the configuration file.
+	config, err := client.NewConfig(configFilePath)
 	if err != nil {
-		logrus.Fatalf("failed to load config: %v", err)
+		logrus.Error("Error reading config file: ", err)
 	}
-	logrus.Printf("Server address: %s", config.Server.Address)
 
-	// Create a new client based on the configuration.
-	c, err := client.NewClient(*config)
-	if err != nil {
-		logrus.Fatalf("failed to create client: %v", err)
+	monitoringInterval := config.ServerConfigurations.Prometheus.TargetServer.FetchInterval
+
+	// Start the monitoring loop.
+	for {
+		err := client.ScheduleMonitoring(config, configFilePath)
+		if err != nil {
+			panic(err)
+		}
+		time.Sleep(time.Duration(monitoringInterval) * time.Second)
 	}
-	logrus.Info("Client created: %v", c)
-
-	// Lauch the clients seperately per metric and let them collect the data and write them to csv.
 }
