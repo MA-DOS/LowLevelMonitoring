@@ -56,7 +56,7 @@ func NewConfig(configFilePath string) (*Config, error) {
 	// Read in the config yml.
 	data, err := os.ReadFile(configFilePath)
 	if err != nil {
-		logrus.Error("Error reading config file: ", err)
+		logrus.Error("Error creating config file: ", err)
 	}
 
 	var config Config
@@ -79,7 +79,7 @@ func NewFetchClient(c *Config) (api.Client, error) {
 }
 
 // Using Prometheus API to fetch the monitoring targets.
-func FetchMonitoringTargets(client api.Client, q string) (model.Value, error) {
+func FetchMonitoringTargets(client api.Client, q string) (model.Vector, error) {
 	v1api := v1.NewAPI(client)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -92,5 +92,10 @@ func FetchMonitoringTargets(client api.Client, q string) (model.Value, error) {
 	if len(warnings) > 0 {
 		logrus.Warnf("Warnings: %v", warnings)
 	}
-	return result, nil
+	castToVector, ok := result.(model.Vector)
+	if !ok {
+		logrus.Error("Error casting to Vector")
+		return nil, err
+	}
+	return castToVector, nil
 }

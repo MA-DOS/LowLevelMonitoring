@@ -21,8 +21,8 @@ type PrometheusRequest func(client api.Client, query string)
 type MonitorQuery func(queries map[string][]string)
 
 // Function to take in client configuration and queries to fetch monitoring targets in a thread.
-func ShootQueries(c *Config, queries map[string][]string) (map[string][]model.Value, error) {
-	results := make(map[string][]model.Value)
+func ShootQueries(c *Config, queries map[string][]string) (map[string][]model.Vector, error) {
+	results := make(map[string][]model.Vector)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	// Debugging just for fun
@@ -56,11 +56,11 @@ func ShootQueries(c *Config, queries map[string][]string) (map[string][]model.Va
 	return results, nil
 }
 
-func ScheduleMonitoring(c *Config, cfp string) error {
-	_, err := ShootQueries(c, AggregateQueries(ReadMonitoringConfiguration(cfp)))
+func ScheduleMonitoring(c *Config, cfp string) (map[string][]model.Vector, error) {
+	result, err := ShootQueries(c, ConsolidateQueries((ReadMonitoringConfiguration(cfp))))
 	if err != nil {
 		logrus.Error("Error shooting queries: ", err)
-		return err
+		return result, err
 	}
-	return nil
+	return result, nil
 }

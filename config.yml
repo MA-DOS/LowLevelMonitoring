@@ -1,0 +1,40 @@
+server_configurations:
+  config_path: config/config.yml
+  prometheus:
+    target_server:
+      address: "http://192.168.2.128:9090"
+      timeout: 10s
+      interval: 5
+monitoring_targets:
+  task_metadata:
+    enabled: true
+    metrics:
+    #- name: container_task_state
+    #  query: container_tasks_state{name=~\"nxf-.*\"}[60s]
+    - name: slurm_job_id
+      query: slurm_job_id
+  cpu:
+    enabled: true
+    metrics:
+    - name:
+      query:
+  memory:
+    enabled: true
+    metrics:
+    - name:
+      query:
+  disk:
+    enabled: true
+    metrics:
+    - name:
+      query:
+  network:
+    enabled: true
+    metrics:
+    - name:
+      query:
+  energy:
+    enabled: true
+    metrics:
+    - name:
+      query:

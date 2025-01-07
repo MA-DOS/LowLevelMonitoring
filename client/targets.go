@@ -9,7 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func AggregateQueries(mt map[string]interface{}) map[string][]string {
+func ConsolidateQueries(mt map[string]interface{}) map[string][]string {
 	// Debugging
 	// fmt.Println("Target Aggregation active: ", mt)
 
@@ -70,12 +70,17 @@ func BuildMetaDataQueries(mt map[string]interface{}) []string {
 		if metrics, ok := taskMetadata["metrics"].([]interface{}); ok && metrics != nil {
 			for _, metric := range metrics {
 				metaDataMetricValues := metric.(map[string]interface{})
-				query := metaDataMetricValues["query"].(string)
-				cleanQuery := EscapeQuery(query)
-				metaDataQueries = append(metaDataQueries, cleanQuery)
+				if query, ok := metaDataMetricValues["query"].(string); ok && query != "" {
+
+					cleanQuery := EscapeQuery(query)
+					metaDataQueries = append(metaDataQueries, cleanQuery)
+				} else {
+					logrus.Warn("Query not defined for MetaData metrics")
+				}
 			}
+
 		} else {
-			logrus.Info("Metrics need to be defined for every monitoring target")
+			logrus.Warn("Metrics need to be defined for every monitoring target")
 		}
 	}
 	return metaDataQueries
@@ -88,14 +93,18 @@ func BuildCPUQueries(mt map[string]interface{}) []string {
 	var cpuQueries []string
 	if cpuMetricsEnabled {
 		if metrics, ok := cpuMetrics["metrics"].([]interface{}); ok && metrics != nil {
-			for _, metric := range cpuMetrics {
+			for _, metric := range metrics {
 				cpuMetricValues := metric.(map[string]interface{})
-				query := cpuMetricValues["query"].(string)
-				cleanQuery := EscapeQuery(query)
-				cpuQueries = append(cpuQueries, cleanQuery)
+				if query, ok := cpuMetricValues["query"].(string); ok && query != "" {
+					logrus.Warn("Query not defined for CPU metrics")
+					cleanQuery := EscapeQuery(query)
+					cpuQueries = append(cpuQueries, cleanQuery)
+				} else {
+					logrus.Warn("Query not defined for CPU metrics")
+				}
 			}
 		} else {
-			logrus.Info("Metrics need to be defined for every monitoring target")
+			logrus.Warn("Metrics need to be defined for every monitoring target")
 		}
 	}
 	return cpuQueries
@@ -108,14 +117,17 @@ func BuildMemoryQueries(mt map[string]interface{}) []string {
 	var memoryQueries []string
 	if memoryMetricsEnabled {
 		if metrics, ok := memoryMetrics["metrics"].([]interface{}); ok && metrics != nil {
-			for _, metric := range memoryMetrics {
+			for _, metric := range metrics {
 				memoryMetricValues := metric.(map[string]interface{})
-				query := memoryMetricValues["query"].(string)
-				cleanQuery := EscapeQuery(query)
-				memoryQueries = append(memoryQueries, cleanQuery)
+				if query, ok := memoryMetricValues["query"].(string); ok && query != "" {
+					cleanQuery := EscapeQuery(query)
+					memoryQueries = append(memoryQueries, cleanQuery)
+				} else {
+					logrus.Warn("Query not defined for Memory metrics")
+				}
 			}
 		} else {
-			logrus.Info("Metrics need to be defined for every monitoring target")
+			logrus.Warn("Metrics need to be defined for every monitoring target")
 		}
 	}
 	return memoryQueries
@@ -128,14 +140,17 @@ func BuildDiskQueries(mt map[string]interface{}) []string {
 	var diskQueries []string
 	if diskMetricsEnabled {
 		if metrics, ok := diskMetrics["metrics"].([]interface{}); ok && metrics != nil {
-			for _, metric := range diskMetrics {
+			for _, metric := range metrics {
 				diskMetricValues := metric.(map[string]interface{})
-				query := diskMetricValues["query"].(string)
-				cleanQuery := EscapeQuery(query)
-				diskQueries = append(diskQueries, cleanQuery)
+				if query, ok := diskMetricValues["query"].(string); ok && query != "" {
+					cleanQuery := EscapeQuery(query)
+					diskQueries = append(diskQueries, cleanQuery)
+				} else {
+					logrus.Warn("Query not defined for Disk metrics")
+				}
 			}
 		} else {
-			logrus.Error("Metrics need to be defined for every monitoring target")
+			logrus.Warn("Metrics need to be defined for every monitoring target")
 		}
 	}
 	return diskQueries
@@ -148,14 +163,17 @@ func BuildNetworkQueries(mt map[string]interface{}) []string {
 	var networkQueries []string
 	if networkMetricsEnabled {
 		if metrics, ok := networkMetrics["metrics"].([]interface{}); ok && metrics != nil {
-			for _, metric := range networkMetrics {
+			for _, metric := range metrics {
 				networkMetricValues := metric.(map[string]interface{})
-				query := networkMetricValues["query"].(string)
-				cleanQuery := EscapeQuery(query)
-				networkQueries = append(networkQueries, cleanQuery)
+				if query, ok := networkMetricValues["query"].(string); ok && query != "" {
+					cleanQuery := EscapeQuery(query)
+					networkQueries = append(networkQueries, cleanQuery)
+				} else {
+					logrus.Warn("Query not defined for Network metrics")
+				}
 			}
 		} else {
-			logrus.Info("Metrics need to be defined for every monitoring target")
+			logrus.Warn("Metrics need to be defined for every monitoring target")
 		}
 	}
 	return networkQueries
@@ -168,14 +186,17 @@ func BuildEnergyQueries(mt map[string]interface{}) []string {
 	var energyQueries []string
 	if energyMetricsEnabled {
 		if metrics, ok := energyMetrics["metrics"].([]interface{}); ok && metrics != nil {
-			for _, metric := range energyMetrics {
+			for _, metric := range metrics {
 				energyMetricValues := metric.(map[string]interface{})
-				query := energyMetricValues["query"].(string)
-				cleanQuery := EscapeQuery(query)
-				energyQueries = append(energyQueries, cleanQuery)
+				if query, ok := energyMetricValues["query"].(string); ok && query != "" {
+					cleanQuery := EscapeQuery(query)
+					energyQueries = append(energyQueries, cleanQuery)
+				} else {
+					logrus.Warn("Query not defined for Energy metrics")
+				}
 			}
 		} else {
-			logrus.Info("Metrics need to be defined for every monitoring target")
+			logrus.Warn("Metrics need to be defined for every monitoring target")
 		}
 	}
 	return energyQueries
