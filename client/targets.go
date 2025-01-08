@@ -10,24 +10,16 @@ import (
 )
 
 func ConsolidateQueries(mt map[string]interface{}) map[string][]string {
-	// Debugging
-	// fmt.Println("Target Aggregation active: ", mt)
-
 	metaDataQueries := BuildMetaDataQueries(mt)
 	fmt.Println("MetaData Queries: ", metaDataQueries)
-
 	cpuQueries := BuildCPUQueries(mt)
 	fmt.Println("CPU Queries: ", cpuQueries)
-
 	memoryQueries := BuildMemoryQueries(mt)
 	fmt.Println("Memory Queries: ", memoryQueries)
-
 	diskQueries := BuildDiskQueries(mt)
 	fmt.Println("Disk Queries: ", diskQueries)
-
 	networkQueries := BuildNetworkQueries(mt)
 	fmt.Println("Network Queries: ", networkQueries)
-
 	energyQueries := BuildEnergyQueries(mt)
 	fmt.Println("Energy Queries: ", energyQueries)
 
@@ -46,6 +38,7 @@ func ReadMonitoringConfiguration(cfp string) map[string]interface{} {
 	// Read in the config yml.
 	data, err := os.ReadFile(cfp)
 	if err != nil {
+		logrus.Error("Error with reading the config file, ", err)
 	}
 	// Save the output of the unmarshalling in a map.
 	metricsMap := make(map[string]interface{})
@@ -62,7 +55,10 @@ func EscapeQuery(query string) string {
 }
 
 func BuildMetaDataQueries(mt map[string]interface{}) []string {
-	monitoringTargets := mt["monitoring_targets"].(map[string]interface{})
+	monitoringTargets, err := mt["monitoring_targets"].(map[string]interface{})
+	if !err {
+		logrus.Error("Monitoring targets not defined, please check the config file")
+	}
 	taskMetadata := monitoringTargets["task_metadata"].(map[string]interface{})
 	metaDataEnabled := taskMetadata["enabled"].(bool)
 	var metaDataQueries []string
@@ -96,7 +92,6 @@ func BuildCPUQueries(mt map[string]interface{}) []string {
 			for _, metric := range metrics {
 				cpuMetricValues := metric.(map[string]interface{})
 				if query, ok := cpuMetricValues["query"].(string); ok && query != "" {
-					logrus.Warn("Query not defined for CPU metrics")
 					cleanQuery := EscapeQuery(query)
 					cpuQueries = append(cpuQueries, cleanQuery)
 				} else {

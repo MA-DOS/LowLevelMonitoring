@@ -3,26 +3,15 @@ package client
 import (
 	"sync"
 
-	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/common/model"
 	"github.com/sirupsen/logrus"
 )
 
-// Defines function type for Prometheus Client.
-// Used to call FetchMonitoringTargets with the client configuration.
-type PrometheusClient func(c *Config) (api.Client, error)
-
-// Defines function type to consolidate init of client and queries.
-// Used to call ShootQuery with the client configuration.
-type PrometheusRequest func(client api.Client, query string)
-
-// Function type for the queries and the actual request.
-// Used so that in main only ScheduleMonitoring is called.
-type MonitorQuery func(queries map[string][]string)
-
+// TODO: Helper functions are needed to split this
 // Function to take in client configuration and queries to fetch monitoring targets in a thread.
-func ShootQueries(c *Config, queries map[string][]string) (map[string][]model.Vector, error) {
-	results := make(map[string][]model.Vector)
+func ShootQueries(c *Config, queries map[string][]string) (map[string][]model.Vector, []model.Vector, error) {
+	resultsWithCategories := make(map[string][]model.Vector)
+	resultsWithoutCategories := []model.Vector{}
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	// Debugging just for fun
@@ -45,22 +34,23 @@ func ShootQueries(c *Config, queries map[string][]string) (map[string][]model.Ve
 					return
 				}
 				mu.Lock()
-				results[metric] = append(results[metric], fetcher)
+				resultsWithCategories[metric] = append(resultsWithCategories[metric], fetcher)
+				resultsWithoutCategories = append(resultsWithoutCategories, fetcher)
 				mu.Unlock()
 			}(metric, query)
 		}
 	}
 	wg.Wait()
 	logrus.Info("Amount of Threads: ", threadCounter)
-	logrus.Info("Results: ", results)
-	return results, nil
+	// logrus.Info("Results: ", resultsWithCategories)
+	return resultsWithCategories, resultsWithoutCategories, nil
 }
 
-func ScheduleMonitoring(c *Config, cfp string) (map[string][]model.Vector, error) {
-	result, err := ShootQueries(c, ConsolidateQueries((ReadMonitoringConfiguration(cfp))))
+func StartMonitoring(c *Config, cfp string) (map[string][]model.Vector, []model.Vector, error) {
+	resultMap, result, err := ShootQueries(c, ConsolidateQueries((ReadMonitoringConfiguration(cfp))))
 	if err != nil {
 		logrus.Error("Error shooting queries: ", err)
-		return result, err
+		return resultMap, result, err
 	}
-	return result, nil
+	return resultMap, result, nil
 }

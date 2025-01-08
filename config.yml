@@ -4,37 +4,43 @@ server_configurations:
     target_server:
       address: "http://192.168.2.128:9090"
       timeout: 10s
-      interval: 5
+      interval: 0.5
 monitoring_targets:
   task_metadata:
     enabled: true
     metrics:
-    #- name: container_task_state
-    #  query: container_tasks_state{name=~\"nxf-.*\"}[60s]
+    - name: slurm_job_id
+      query: slurm_job_id
     - name: slurm_job_id
       query: slurm_job_id
   cpu:
-    enabled: true
+    enabled: false
     metrics:
-    - name:
-      query:
+    - name: slurm_job_id
+      query: slurm_job_id
+    - name: slurm_job_id
+      query: slurm_job_id
+    - name: slurm_job_id
+      query: slurm_job_id
+    - name: slurm_job_id
+      query: slurm_job_id
   memory:
-    enabled: true
+    enabled: false
     metrics:
-    - name:
-      query:
+    - name: slurm_job_id
+      query: slurm_job_id
   disk:
-    enabled: true
+    enabled: false
     metrics:
-    - name:
-      query:
+    - name: slurm_job_id
+      query: slurm_job_id
   network:
-    enabled: true
+    enabled: false
     metrics:
-    - name:
-      query:
+    - name: slurm_job_id
+      query: slurm_job_id
   energy:
-    enabled: true
+    enabled: false
     metrics:
-    - name:
-      query:
+    - name: slurm_job_id
+      query: slurm_job_id
