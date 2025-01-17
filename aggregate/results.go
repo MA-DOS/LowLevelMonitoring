@@ -4,7 +4,6 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
-	"sort"
 	"time"
 
 	"github.com/prometheus/common/model"
@@ -12,90 +11,62 @@ import (
 )
 
 type MetaDataVectorWrapper struct {
-	Vector     model.Vector
-	MetricsMap map[string][]model.Vector
+	Result    model.Vector                                    // Needed only for slurm_job_id metadata
+	ResultMap map[string]map[string]map[string][]model.Vector // Holds the map according to the config structure
 }
 
-func NewMetaDataVectorWrapper(v model.Vector, m map[string][]model.Vector) *MetaDataVectorWrapper {
+func NewMetaDataVectorWrapper(r model.Vector, m map[string]map[string]map[string][]model.Vector) *MetaDataVectorWrapper {
 	return &MetaDataVectorWrapper{
-		Vector:     v,
-		MetricsMap: m,
+		Result:    r,
+		ResultMap: m,
 	}
 }
 
-// TODO: Need to refactor this function to be more modular.
 // This func is called on a MetaDataVectorWrapper object so it can access the fileds of the struct.
 func (v *MetaDataVectorWrapper) CreateMetaDataOutput() error {
-	var timestamp time.Time
-	for key, vectors := range v.MetricsMap {
-		// Create a new folder for the key (monitoring target)
-		targetFolder := fmt.Sprintf("results/%s", key)
-		err := CreateOutputFolders(targetFolder)
-		if err != nil {
-			if os.IsExist(err) {
-				logrus.Warn("Folder already exists: ", targetFolder)
-			} else {
-				logrus.Error("Error creating folder: ", err)
-				return err
-			}
-		}
+	err := CreateMonitoringOutput(v)
+	if err != nil {
+		logrus.Error("Error creating output structure: ", err)
+	}
+	return nil
+}
 
-		for _, vector := range vectors {
-			for _, value := range vector {
-				fileIdentifier := GetFileIdentifier(*value)
-				fileName := GetFileName(targetFolder, fileIdentifier)
-				timestamp = GetTimeStamp(*value)
-				fmt.Print("Timestamp: ", timestamp)
+func CreateMonitoringOutput(v *MetaDataVectorWrapper) error {
+	err := os.Mkdir("results", 0755)
+	if err != nil && !os.IsExist(err) {
+		logrus.Error("Error creating results directory: ", err)
+		return err
+	}
 
-				// Create or open file in append mode
-				file, err := CreateFile(fileName)
-				if err != nil {
-					return err
+	for target, dataSources := range v.ResultMap {
+
+		targetFolder := fmt.Sprintf("results/%s", target)
+		CreateOutputFolder(targetFolder)
+
+		for dataSource, queryNames := range dataSources {
+			sourceFolder := fmt.Sprintf("%s/%s", targetFolder, dataSource)
+			CreateOutputFolder(sourceFolder)
+
+			for queryName, vectors := range queryNames {
+				queryFolder := fmt.Sprintf("%s/%s", sourceFolder, queryName)
+				CreateOutputFolder(queryFolder)
+
+				queryFile := CreateFile(queryFolder, queryName+".csv")
+
+				for _, vector := range vectors {
+					for _, value := range vector {
+						timestamp := value.Timestamp.Time()
+						logrus.Info("Metrics are writte at time: ", timestamp)
+						v.WriteToCSV(queryFile, timestamp, model.LabelSet(value.Metric), float64(value.Value))
+					}
 				}
-				logrus.Info("File opened: ", fileName)
-
-				// Calling helper to write to file
-				err = v.WriteToCSV(file, timestamp, model.LabelSet(value.Metric))
-				if err != nil {
-					logrus.Error("Error writing to file: ", err)
-				}
-				file.Close() // Close the file after writing
 			}
 		}
 	}
 	return nil
 }
 
-func ReadHeaderFields(labelNames model.LabelSet) []string {
-	header := []string{}
-	// Write timestamp as first table entry
-	header = append(header, "unix timestamp")
-	for key := range labelNames {
-		castLabels := string(key)
-		header = append(header, castLabels)
-	}
-	sort.Strings(header)
-	return header
-}
-
-func ReadLabelValues(timestamp time.Time, labelValues model.LabelSet) []string {
-	// values := []string{}
-	// _ = append(values, timestamp.String())
-	// for _, value := range labelValues {
-	// 	castValue := string(value)
-	// 	values = append(values, castValue)
-	// }
-	// sort.Strings(values)
-	// return values
-
-	record := []string{
-		timestamp.String(),
-		labelValues.String(),
-	}
-	return record
-}
-
-func (v *MetaDataVectorWrapper) WriteToCSV(outputFile *os.File, timestamp time.Time, metricLabels model.LabelSet) error {
+func (v *MetaDataVectorWrapper) WriteToCSV(outputFile *os.File, timestamp time.Time, metricLabels model.LabelSet, value float64) error {
 	w := csv.NewWriter(outputFile)
 	w.Comma = ','
 	defer w.Flush()
@@ -109,14 +80,9 @@ func (v *MetaDataVectorWrapper) WriteToCSV(outputFile *os.File, timestamp time.T
 			return err
 		}
 	}
-	// header := ReadHeaderFields(metricLabels)
-	// if err := w.Write(header); err != nil {
-	// 	logrus.Error("Error writing the header to CSV: ", err)
-	// 	return err
-	// }
 
-	// Write data to the file.
-	values := ReadLabelValues(timestamp, metricLabels)
+	// // Write data to the file.
+	values := ReadLabelValues(timestamp, metricLabels, value)
 	if err := w.Write(values); err != nil {
 		logrus.Error("Error writing to CSV")
 		return err
@@ -124,19 +90,8 @@ func (v *MetaDataVectorWrapper) WriteToCSV(outputFile *os.File, timestamp time.T
 	return nil
 }
 
-// TODO: This might be built into create output function.
-// func GetFolderNames(m *map[string][]model.Vector) string {
-// 	var folderName string
-// 	for key := range *m {
-// 		targetFolder := fmt.Sprintf("results/%s", key)
-// 		folderName = targetFolder
-// 	}
-// 	return folderName
-// }
-
 // Helper to create folder.
-// TODO: Do this for each metric type in a go routine
-func CreateOutputFolders(folderName string) error {
+func CreateOutputFolder(folderName string) error {
 	if _, err := os.Stat(folderName); os.IsNotExist(err) {
 		err := os.Mkdir(folderName, 0755)
 		if err != nil {
@@ -146,12 +101,14 @@ func CreateOutputFolders(folderName string) error {
 	return nil
 }
 
-func GetFileIdentifier(sample model.Sample) string {
-	return sample.Value.String()
-}
-
-func GetTimeStamp(sample model.Sample) time.Time {
-	return sample.Timestamp.Time()
+func CreateFile(path, fileName string) *os.File {
+	fullPath := fmt.Sprintf("%s/%s", path, fileName)
+	file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		logrus.Error("Error opening file: ", err)
+		return nil
+	}
+	return file
 }
 
 // Helper to get file name.
@@ -159,47 +116,32 @@ func GetFileName(targetFolder, fileIdentifier string) string {
 	return fmt.Sprintf("%s/%s.csv", targetFolder, fileIdentifier)
 }
 
-func CreateFile(fileName string) (*os.File, error) {
-	file, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		logrus.Error("Error opening file: ", err)
-		return nil, err
+func ReadHeaderFields(labelNames model.LabelSet) []string {
+	header := []string{}
+	// Write timestamp as first table entry
+	header = append(header, "value")
+	header = append(header, "unix timestamp")
+	for key := range labelNames {
+		castLabels := string(key)
+		header = append(header, castLabels)
 	}
-	return file, nil
+	// sort.Strings(header)
+	return header
 }
 
-// TODO: Helper functions are needed to split this.
-// func (v *MetaDataVectorWrapper) CreateMetaDataOutput(m *map[string][]model.Vector) error {
-// 	for key := range *m {
-// 		// Create a new folder for the key (monitoring target)
-// 		targetFolder := fmt.Sprintf("results/%s", key)
-// 		err := os.Mkdir(targetFolder, 0755)
-// 		if err != nil {
-// 			if os.IsExist(err) {
-// 				logrus.Warn("Folder already exists: ", targetFolder)
-// 			} else {
-// 				logrus.Error("Error creating folder: ", err)
-// 			}
-// 			for _, vector := range (*m)[key] {
-// 				for _, value := range vector {
-// 					metrics := model.LabelSet(value.Metric)
-// 					fileIdentifier := value.Value.String()
-// 					fileName := fmt.Sprintf("results/%s/%s.txt", key, fileIdentifier)
-// 					file, err := os.Create(fileName)
-// 					// Calling helper to write to file
-// 					err = v.WriteToCSV(file, metrics)
-// 					logrus.Info("Writing to file: ", fileName)
-// 					if err != nil {
-// 						if os.IsExist(err) {
-// 							logrus.Warn("File already exists: ", fileName)
-// 						} else {
-// 							logrus.Error("Error creating file: ", err)
-// 						}
-// 						defer file.Close()
-// 					}
-// 				}
-// 			}
-// 		}
-// 	}
-// 	return nil
-// }
+func ReadLabelValues(timestamp time.Time, labelValues model.LabelSet, value float64) []string {
+	record := []string{
+		timestamp.String(),
+		labelValues.String(),
+		fmt.Sprintf("%f", value),
+	}
+	return record
+}
+
+func GetFileIdentifier(sample model.Sample) string {
+	return sample.Value.String()
+}
+
+func GetTimeStamp(sample model.Sample) time.Time {
+	return sample.Timestamp.Time()
+}

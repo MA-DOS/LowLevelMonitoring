@@ -4,43 +4,49 @@ server_configurations:
     target_server:
       address: "http://192.168.2.128:9090"
       timeout: 10s
-      interval: 0.5
+      interval: 5
 monitoring_targets:
   task_metadata:
     enabled: true
-    metrics:
-    - name: slurm_job_id
-      query: slurm_job_id
-    - name: slurm_job_id
-      query: slurm_job_id
+    data_sources:
+    - source: cAdvisor
+      metrics:
+      - name: container_task_state
+        query: max_over_time(container_tasks_state[60s])
+      - name: container start-time
+        query: max_over_time(container_start_time_seconds[10s])
   cpu:
     enabled: false
-    metrics:
-    - name: slurm_job_id
-      query: slurm_job_id
-    - name: slurm_job_id
-      query: slurm_job_id
-    - name: slurm_job_id
-      query: slurm_job_id
-    - name: slurm_job_id
-      query: slurm_job_id
+    data_sources:
+    - source:
+      metrics:
+      - name:
+        query:
   memory:
     enabled: false
-    metrics:
-    - name: slurm_job_id
-      query: slurm_job_id
+    data_sources:
+    - source:
+      metrics:
+      - name:
+        query:
   disk:
     enabled: false
-    metrics:
-    - name: slurm_job_id
-      query: slurm_job_id
+    data_sources:
+    - source:
+      metrics:
+      - name:
+        query:
   network:
     enabled: false
-    metrics:
-    - name: slurm_job_id
-      query: slurm_job_id
+    data_sources:
+    - source:
+      metrics:
+      - name:
+        query:
   energy:
     enabled: false
-    metrics:
-    - name: slurm_job_id
-      query: slurm_job_id
+    data_sources:
+    - source:
+      metrics:
+      - name:
+        query:

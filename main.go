@@ -24,6 +24,16 @@ func main() {
 
 	// Start the monitoring loop.
 	ScheduleMonitoring(config, monitoringInterval)
+	queries := client.ConsolidateQueries(client.ReadMonitoringConfiguration(configFilePath))
+	// fmt.Printf("Queries: %v\n", queries)
+	_ = queries
+	detailMap, vectorValues, err := client.FetchMonitoringSources(config, queries)
+	if err != nil {
+		logrus.Error("Error shooting queries: ", err)
+	}
+	_ = vectorValues
+	_ = detailMap
+
 }
 
 // TODO: Refactor to read path out of config, somehow did not work...
@@ -39,7 +49,7 @@ func ScheduleMonitoring(config *client.Config, interval int) {
 		// Data Structure for meta data results
 		for _, result := range results {
 			metaDataWrapper := aggregate.NewMetaDataVectorWrapper(result, resultMap)
-			fmt.Println("MetaDataWrapper: ", metaDataWrapper)
+			// fmt.Println("MetaDataWrapper: ", metaDataWrapper)
 
 			err = metaDataWrapper.CreateMetaDataOutput()
 			if err != nil {

@@ -10,6 +10,7 @@ type Aggregator interface {
 	CreateMetaDataOutput(m *map[string][]model.Vector) error
 
 	WriteToCSV() error
+
 	Aggreagate() error
 
 	Match() error

@@ -42,8 +42,13 @@ type MonitoringTargets struct {
 }
 
 type MonitoringTarget struct {
-	Enabled bool     `yaml:"enabled"`
-	Metrics []Metric `yaml:"metrics"`
+	Enabled     bool         `yaml:"enabled"`
+	DataSources []DataSource `yaml:"metrics"`
+}
+
+type DataSource struct {
+	Source  string   `yaml:"source"`
+	Metrics []string `yaml:"metrics"`
 }
 
 type Metric struct {

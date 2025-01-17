@@ -1,35 +1,30 @@
 package client
 
 import (
-	"fmt"
 	"os"
 	"regexp"
 
+	"github.com/barweiss/go-tuple"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
 
-func ConsolidateQueries(mt map[string]interface{}) map[string][]string {
-	metaDataQueries := BuildMetaDataQueries(mt)
-	fmt.Println("MetaData Queries: ", metaDataQueries)
-	cpuQueries := BuildCPUQueries(mt)
-	fmt.Println("CPU Queries: ", cpuQueries)
-	memoryQueries := BuildMemoryQueries(mt)
-	fmt.Println("Memory Queries: ", memoryQueries)
-	diskQueries := BuildDiskQueries(mt)
-	fmt.Println("Disk Queries: ", diskQueries)
-	networkQueries := BuildNetworkQueries(mt)
-	fmt.Println("Network Queries: ", networkQueries)
-	energyQueries := BuildEnergyQueries(mt)
-	fmt.Println("Energy Queries: ", energyQueries)
+// Returns a map of monitoring target to source and the respective queries per source
+func ConsolidateQueries(mt map[string]interface{}) map[string]map[string][]tuple.T2[string, string] {
+	sourceToQueryMap := BuildMetaDataQueries(mt)
+	// cpuQueries := BuildCPUQueries(mt)
+	// fmt.Println("CPU Queries: ", cpuQueries)
+	// memoryQueries := BuildMemoryQueries(mt)
+	// fmt.Println("Memory Queries: ", memoryQueries)
+	// diskQueries := BuildDiskQueries(mt)
+	// fmt.Println("Disk Queries: ", diskQueries)
+	// networkQueries := BuildNetworkQueries(mt)
+	// fmt.Println("Network Queries: ", networkQueries)
+	// energyQueries := BuildEnergyQueries(mt)
+	// fmt.Println("Energy Queries: ", energyQueries)
 
-	return map[string][]string{
-		"metaDataQueries": metaDataQueries,
-		"cpuQueries":      cpuQueries,
-		"memoryQueries":   memoryQueries,
-		"diskQueries":     diskQueries,
-		"networkQueries":  networkQueries,
-		"energyQueries":   energyQueries,
+	return map[string]map[string][]tuple.T2[string, string]{
+		"task_metadata": sourceToQueryMap,
 	}
 }
 
@@ -54,32 +49,71 @@ func EscapeQuery(query string) string {
 	return re.ReplaceAllString(query, "")
 }
 
-func BuildMetaDataQueries(mt map[string]interface{}) []string {
+func processSource(source interface{}, queriesPerDataSource map[string][]tuple.T2[string, string]) {
+	sourceMap, ok := source.(map[string]interface{})
+	if !ok {
+		logrus.Warn("Source not defined for MetaData metrics")
+		return
+	}
+
+	sourceName, ok := sourceMap["source"].(string)
+	if !ok {
+		logrus.Warn("Source name not defined for MetaData metrics")
+		return
+	}
+
+	queriesPerDataSource[sourceName] = extractQueries(sourceMap)
+}
+
+func extractQueries(sourceMap map[string]interface{}) []tuple.T2[string, string] {
+	metrics, ok := sourceMap["metrics"].([]interface{})
+	if !ok || metrics == nil {
+		logrus.Warn("Metrics not defined for MetaData metrics")
+		return nil
+	}
+
+	var queries []tuple.T2[string, string]
+	for _, metric := range metrics {
+		if metricMap, ok := metric.(map[string]interface{}); ok {
+			name, nameOk := metricMap["name"].(string)
+			query, queryOk := metricMap["query"].(string)
+			if nameOk && queryOk {
+				queries = append(queries, tuple.New2(name, query))
+			}
+		}
+	}
+	return queries
+}
+
+func BuildMetaDataQueries(mt map[string]interface{}) map[string][]tuple.T2[string, string] {
+	queriesPerDataSource := make(map[string][]tuple.T2[string, string])
+
 	monitoringTargets, err := mt["monitoring_targets"].(map[string]interface{})
 	if !err {
 		logrus.Error("Monitoring targets not defined, please check the config file")
 	}
-	taskMetadata := monitoringTargets["task_metadata"].(map[string]interface{})
-	metaDataEnabled := taskMetadata["enabled"].(bool)
-	var metaDataQueries []string
-	if metaDataEnabled {
-		if metrics, ok := taskMetadata["metrics"].([]interface{}); ok && metrics != nil {
-			for _, metric := range metrics {
-				metaDataMetricValues := metric.(map[string]interface{})
-				if query, ok := metaDataMetricValues["query"].(string); ok && query != "" {
 
-					cleanQuery := EscapeQuery(query)
-					metaDataQueries = append(metaDataQueries, cleanQuery)
-				} else {
-					logrus.Warn("Query not defined for MetaData metrics")
-				}
-			}
-
-		} else {
-			logrus.Warn("Metrics need to be defined for every monitoring target")
-		}
+	taskMetadata, ok := monitoringTargets["task_metadata"].(map[string]interface{})
+	if !ok || !isEnabled(taskMetadata) {
+		logrus.Warn("MetaData metrics not enabled")
+		return queriesPerDataSource
 	}
-	return metaDataQueries
+
+	metaDataSources, ok := taskMetadata["data_sources"].([]interface{})
+	if !ok || metaDataSources == nil {
+		logrus.Warn("Data sources not defined for MetaData metrics")
+		return queriesPerDataSource
+	}
+
+	for _, source := range metaDataSources {
+		processSource(source, queriesPerDataSource)
+	}
+	return queriesPerDataSource
+}
+
+func isEnabled(target map[string]interface{}) bool {
+	enabled, ok := target["enabled"].(bool)
+	return ok && enabled
 }
 
 func BuildCPUQueries(mt map[string]interface{}) []string {
