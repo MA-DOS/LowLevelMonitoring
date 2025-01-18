@@ -10,20 +10,20 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type MetaDataVectorWrapper struct {
+type DataVectorWrapper struct {
 	Result    model.Vector                                    // Needed only for slurm_job_id metadata
 	ResultMap map[string]map[string]map[string][]model.Vector // Holds the map according to the config structure
 }
 
-func NewMetaDataVectorWrapper(r model.Vector, m map[string]map[string]map[string][]model.Vector) *MetaDataVectorWrapper {
-	return &MetaDataVectorWrapper{
+func NewDataVectorWrapper(r model.Vector, m map[string]map[string]map[string][]model.Vector) *DataVectorWrapper {
+	return &DataVectorWrapper{
 		Result:    r,
 		ResultMap: m,
 	}
 }
 
 // This func is called on a MetaDataVectorWrapper object so it can access the fileds of the struct.
-func (v *MetaDataVectorWrapper) CreateMetaDataOutput() error {
+func (v *DataVectorWrapper) CreateDataOutput() error {
 	err := CreateMonitoringOutput(v)
 	if err != nil {
 		logrus.Error("Error creating output structure: ", err)
@@ -31,7 +31,7 @@ func (v *MetaDataVectorWrapper) CreateMetaDataOutput() error {
 	return nil
 }
 
-func CreateMonitoringOutput(v *MetaDataVectorWrapper) error {
+func CreateMonitoringOutput(v *DataVectorWrapper) error {
 	err := os.Mkdir("results", 0755)
 	if err != nil && !os.IsExist(err) {
 		logrus.Error("Error creating results directory: ", err)
@@ -56,7 +56,7 @@ func CreateMonitoringOutput(v *MetaDataVectorWrapper) error {
 				for _, vector := range vectors {
 					for _, value := range vector {
 						timestamp := value.Timestamp.Time()
-						logrus.Info("Metrics are writte at time: ", timestamp)
+						logrus.Info("Metrics are written at time: ", timestamp)
 						v.WriteToCSV(queryFile, timestamp, model.LabelSet(value.Metric), float64(value.Value))
 					}
 				}
@@ -66,7 +66,7 @@ func CreateMonitoringOutput(v *MetaDataVectorWrapper) error {
 	return nil
 }
 
-func (v *MetaDataVectorWrapper) WriteToCSV(outputFile *os.File, timestamp time.Time, metricLabels model.LabelSet, value float64) error {
+func (v *DataVectorWrapper) WriteToCSV(outputFile *os.File, timestamp time.Time, metricLabels model.LabelSet, value float64) error {
 	w := csv.NewWriter(outputFile)
 	w.Comma = ','
 	defer w.Flush()

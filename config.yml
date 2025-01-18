@@ -1,5 +1,5 @@
 server_configurations:
-  config_path: config/config.yml
+  config_path: ~/dev/LowLevelMonitoring/config.yml
   prometheus:
     target_server:
       address: "http://192.168.2.128:9090"
@@ -9,43 +9,49 @@ monitoring_targets:
   task_metadata:
     enabled: true
     data_sources:
-    - source: cAdvisor
+    - source: cAdvisor_meta
       metrics:
       - name: container_task_state
         query: max_over_time(container_tasks_state[60s])
-      - name: container start-time
-        query: max_over_time(container_start_time_seconds[10s])
   cpu:
-    enabled: false
+    enabled: true
     data_sources:
-    - source:
+    - source: cAdvisor_cpu
       metrics:
-      - name:
-        query:
+      - name: container_start-time
+        query: max_over_time(container_start_time_seconds[10s])
+    - source: cAdvisor_cpu_2
+      metrics:
+      - name: container_start-time
+        query: max_over_time(container_start_time_seconds[10s])
   memory:
-    enabled: false
+    enabled: true
     data_sources:
-    - source:
+    - source: cAdvisor_memory
       metrics:
-      - name:
-        query:
+      - name: container_start-time
+        query: max_over_time(container_start_time_seconds[10s])
   disk:
-    enabled: false
+    enabled: true
     data_sources:
-    - source:
+    - source: cAdvisor_disk
       metrics:
-      - name:
-        query:
+      - name: container_start-time
+        query: max_over_time(container_start_time_seconds[10s])
   network:
-    enabled: false
+    enabled: true
     data_sources:
-    - source:
+    - source: cAdvisor_network
       metrics:
-      - name:
-        query:
+      - name: container_start-time
+        query: max_over_time(container_start_time_seconds[10s])
   energy:
-    enabled: false
+    enabled: true
     data_sources:
+    - source: cAdvisor_energy
+      metrics:
+      - name: container_start-time
+        query: max_over_time(container_start_time_seconds[10s])
     - source:
       metrics:
       - name:

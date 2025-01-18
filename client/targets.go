@@ -11,20 +11,20 @@ import (
 
 // Returns a map of monitoring target to source and the respective queries per source
 func ConsolidateQueries(mt map[string]interface{}) map[string]map[string][]tuple.T2[string, string] {
-	sourceToQueryMap := BuildMetaDataQueries(mt)
-	// cpuQueries := BuildCPUQueries(mt)
-	// fmt.Println("CPU Queries: ", cpuQueries)
-	// memoryQueries := BuildMemoryQueries(mt)
-	// fmt.Println("Memory Queries: ", memoryQueries)
-	// diskQueries := BuildDiskQueries(mt)
-	// fmt.Println("Disk Queries: ", diskQueries)
-	// networkQueries := BuildNetworkQueries(mt)
-	// fmt.Println("Network Queries: ", networkQueries)
-	// energyQueries := BuildEnergyQueries(mt)
-	// fmt.Println("Energy Queries: ", energyQueries)
+	sourceToMetaQueryMap := BuildMetaDataQueries(mt)
+	sourceToCpuQueryMap := BuildCPUQueries(mt)
+	sourceToMemoryMap := BuildMemoryQueries(mt)
+	sourceToDiskMap := BuildDiskQueries(mt)
+	sourceToNetworkMap := BuildNetworkQueries(mt)
+	sourceToEnergyMap := BuildEnergyQueries(mt)
 
 	return map[string]map[string][]tuple.T2[string, string]{
-		"task_metadata": sourceToQueryMap,
+		"task_metadata":     sourceToMetaQueryMap,
+		"task_cpu_data":     sourceToCpuQueryMap,
+		"task_memory_data":  sourceToMemoryMap,
+		"task_disk_data":    sourceToDiskMap,
+		"task_network_data": sourceToNetworkMap,
+		"task_energy_data":  sourceToEnergyMap,
 	}
 }
 
@@ -68,10 +68,9 @@ func processSource(source interface{}, queriesPerDataSource map[string][]tuple.T
 func extractQueries(sourceMap map[string]interface{}) []tuple.T2[string, string] {
 	metrics, ok := sourceMap["metrics"].([]interface{})
 	if !ok || metrics == nil {
-		logrus.Warn("Metrics not defined for MetaData metrics")
+		logrus.Warn("Metrics need to be defined")
 		return nil
 	}
-
 	var queries []tuple.T2[string, string]
 	for _, metric := range metrics {
 		if metricMap, ok := metric.(map[string]interface{}); ok {
@@ -87,7 +86,6 @@ func extractQueries(sourceMap map[string]interface{}) []tuple.T2[string, string]
 
 func BuildMetaDataQueries(mt map[string]interface{}) map[string][]tuple.T2[string, string] {
 	queriesPerDataSource := make(map[string][]tuple.T2[string, string])
-
 	monitoringTargets, err := mt["monitoring_targets"].(map[string]interface{})
 	if !err {
 		logrus.Error("Monitoring targets not defined, please check the config file")
@@ -116,117 +114,122 @@ func isEnabled(target map[string]interface{}) bool {
 	return ok && enabled
 }
 
-func BuildCPUQueries(mt map[string]interface{}) []string {
-	monitoringTargets := mt["monitoring_targets"].(map[string]interface{})
-	cpuMetrics := monitoringTargets["cpu"].(map[string]interface{})
-	cpuMetricsEnabled := cpuMetrics["enabled"].(bool)
-	var cpuQueries []string
-	if cpuMetricsEnabled {
-		if metrics, ok := cpuMetrics["metrics"].([]interface{}); ok && metrics != nil {
-			for _, metric := range metrics {
-				cpuMetricValues := metric.(map[string]interface{})
-				if query, ok := cpuMetricValues["query"].(string); ok && query != "" {
-					cleanQuery := EscapeQuery(query)
-					cpuQueries = append(cpuQueries, cleanQuery)
-				} else {
-					logrus.Warn("Query not defined for CPU metrics")
-				}
-			}
-		} else {
-			logrus.Warn("Metrics need to be defined for every monitoring target")
-		}
+func BuildCPUQueries(mt map[string]interface{}) map[string][]tuple.T2[string, string] {
+	queriesPerDataSource := make(map[string][]tuple.T2[string, string])
+	monitoringTargets, err := mt["monitoring_targets"].(map[string]interface{})
+	if !err {
+		logrus.Error("Monitoring targets not defined, please check the config file")
 	}
-	return cpuQueries
+	taskCpuData, ok := monitoringTargets["cpu"].(map[string]interface{})
+	if !ok || !isEnabled(taskCpuData) {
+		logrus.Warn("CPU metrics not enabled")
+		return queriesPerDataSource
+	}
+
+	cpuDataSources, ok := taskCpuData["data_sources"].([]interface{})
+	if !ok || cpuDataSources == nil {
+		logrus.Warn("Data sources not defined for CPU metrics")
+		return queriesPerDataSource
+	}
+
+	for _, source := range cpuDataSources {
+		processSource(source, queriesPerDataSource)
+	}
+	return queriesPerDataSource
 }
 
-func BuildMemoryQueries(mt map[string]interface{}) []string {
-	monitoringTargets := mt["monitoring_targets"].(map[string]interface{})
-	memoryMetrics := monitoringTargets["memory"].(map[string]interface{})
-	memoryMetricsEnabled := memoryMetrics["enabled"].(bool)
-	var memoryQueries []string
-	if memoryMetricsEnabled {
-		if metrics, ok := memoryMetrics["metrics"].([]interface{}); ok && metrics != nil {
-			for _, metric := range metrics {
-				memoryMetricValues := metric.(map[string]interface{})
-				if query, ok := memoryMetricValues["query"].(string); ok && query != "" {
-					cleanQuery := EscapeQuery(query)
-					memoryQueries = append(memoryQueries, cleanQuery)
-				} else {
-					logrus.Warn("Query not defined for Memory metrics")
-				}
-			}
-		} else {
-			logrus.Warn("Metrics need to be defined for every monitoring target")
-		}
+func BuildMemoryQueries(mt map[string]interface{}) map[string][]tuple.T2[string, string] {
+	queriesPerDataSource := make(map[string][]tuple.T2[string, string])
+	monitoringTargets, err := mt["monitoring_targets"].(map[string]interface{})
+	if !err {
+		logrus.Error("Monitoring targets not defined, please check the config file")
 	}
-	return memoryQueries
+	taskMemoryData, ok := monitoringTargets["memory"].(map[string]interface{})
+	if !ok || !isEnabled(taskMemoryData) {
+		logrus.Warn("Memory metrics not enabled")
+		return nil
+	}
+
+	memoryDataSources, ok := taskMemoryData["data_sources"].([]interface{})
+	if !ok || memoryDataSources == nil {
+		logrus.Warn("Data sources not defined for Memory metrics")
+		return nil
+	}
+
+	for _, source := range memoryDataSources {
+		processSource(source, queriesPerDataSource)
+	}
+	return queriesPerDataSource
 }
 
-func BuildDiskQueries(mt map[string]interface{}) []string {
-	monitoringTargets := mt["monitoring_targets"].(map[string]interface{})
-	diskMetrics := monitoringTargets["disk"].(map[string]interface{})
-	diskMetricsEnabled := diskMetrics["enabled"].(bool)
-	var diskQueries []string
-	if diskMetricsEnabled {
-		if metrics, ok := diskMetrics["metrics"].([]interface{}); ok && metrics != nil {
-			for _, metric := range metrics {
-				diskMetricValues := metric.(map[string]interface{})
-				if query, ok := diskMetricValues["query"].(string); ok && query != "" {
-					cleanQuery := EscapeQuery(query)
-					diskQueries = append(diskQueries, cleanQuery)
-				} else {
-					logrus.Warn("Query not defined for Disk metrics")
-				}
-			}
-		} else {
-			logrus.Warn("Metrics need to be defined for every monitoring target")
-		}
+func BuildDiskQueries(mt map[string]interface{}) map[string][]tuple.T2[string, string] {
+	queriesPerDataSource := make(map[string][]tuple.T2[string, string])
+	monitoringTargets, err := mt["monitoring_targets"].(map[string]interface{})
+	if !err {
+		logrus.Error("Monitoring targets not defined, please check the config file")
 	}
-	return diskQueries
+	taskDiskData, ok := monitoringTargets["disk"].(map[string]interface{})
+	if !ok || !isEnabled(taskDiskData) {
+		logrus.Warn("Disk metrics not enabled")
+		return queriesPerDataSource
+	}
+
+	diskDataSources, ok := taskDiskData["data_sources"].([]interface{})
+	if !ok || diskDataSources == nil {
+		logrus.Warn("Data sources not defined for Disk metrics")
+		return queriesPerDataSource
+	}
+
+	for _, source := range diskDataSources {
+		processSource(source, queriesPerDataSource)
+	}
+	return queriesPerDataSource
 }
 
-func BuildNetworkQueries(mt map[string]interface{}) []string {
-	monitoringTargets := mt["monitoring_targets"].(map[string]interface{})
-	networkMetrics := monitoringTargets["network"].(map[string]interface{})
-	networkMetricsEnabled := networkMetrics["enabled"].(bool)
-	var networkQueries []string
-	if networkMetricsEnabled {
-		if metrics, ok := networkMetrics["metrics"].([]interface{}); ok && metrics != nil {
-			for _, metric := range metrics {
-				networkMetricValues := metric.(map[string]interface{})
-				if query, ok := networkMetricValues["query"].(string); ok && query != "" {
-					cleanQuery := EscapeQuery(query)
-					networkQueries = append(networkQueries, cleanQuery)
-				} else {
-					logrus.Warn("Query not defined for Network metrics")
-				}
-			}
-		} else {
-			logrus.Warn("Metrics need to be defined for every monitoring target")
-		}
+func BuildNetworkQueries(mt map[string]interface{}) map[string][]tuple.T2[string, string] {
+	queriesPerDataSource := make(map[string][]tuple.T2[string, string])
+	monitoringTargets, err := mt["monitoring_targets"].(map[string]interface{})
+	if !err {
+		logrus.Error("Monitoring targets not defined, please check the config file")
 	}
-	return networkQueries
+	taskNetworkData, ok := monitoringTargets["network"].(map[string]interface{})
+	if !ok || !isEnabled(taskNetworkData) {
+		logrus.Warn("Network metrics not enabled")
+		return queriesPerDataSource
+	}
+
+	networkDataSources, ok := taskNetworkData["data_sources"].([]interface{})
+	if !ok || networkDataSources == nil {
+		logrus.Warn("Data sources not defined for Network metrics")
+		return queriesPerDataSource
+	}
+
+	for _, source := range networkDataSources {
+		processSource(source, queriesPerDataSource)
+	}
+	return queriesPerDataSource
 }
 
-func BuildEnergyQueries(mt map[string]interface{}) []string {
-	monitoringTargets := mt["monitoring_targets"].(map[string]interface{})
-	energyMetrics := monitoringTargets["energy"].(map[string]interface{})
-	energyMetricsEnabled := energyMetrics["enabled"].(bool)
-	var energyQueries []string
-	if energyMetricsEnabled {
-		if metrics, ok := energyMetrics["metrics"].([]interface{}); ok && metrics != nil {
-			for _, metric := range metrics {
-				energyMetricValues := metric.(map[string]interface{})
-				if query, ok := energyMetricValues["query"].(string); ok && query != "" {
-					cleanQuery := EscapeQuery(query)
-					energyQueries = append(energyQueries, cleanQuery)
-				} else {
-					logrus.Warn("Query not defined for Energy metrics")
-				}
-			}
-		} else {
-			logrus.Warn("Metrics need to be defined for every monitoring target")
-		}
+func BuildEnergyQueries(mt map[string]interface{}) map[string][]tuple.T2[string, string] {
+	queriesPerDataSource := make(map[string][]tuple.T2[string, string])
+	monitoringTargets, err := mt["monitoring_targets"].(map[string]interface{})
+	if !err {
+		logrus.Error("Monitoring targets not defined, please check the config file")
 	}
-	return energyQueries
+	taskEnergyData, ok := monitoringTargets["energy"].(map[string]interface{})
+	if !ok || !isEnabled(taskEnergyData) {
+		logrus.Warn("Energy metrics not enabled")
+		return queriesPerDataSource
+	}
+
+	energyDataSources, ok := taskEnergyData["data_sources"].([]interface{})
+	if !ok || energyDataSources == nil {
+		logrus.Warn("Data sources not defined for Energy metrics")
+		return queriesPerDataSource
+	}
+
+	for _, source := range energyDataSources {
+		processSource(source, queriesPerDataSource)
+	}
+	return queriesPerDataSource
 }

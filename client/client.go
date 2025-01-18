@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/MA-DOS/LowLevelMonitoring/aggregate"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
@@ -103,4 +104,28 @@ func FetchMonitoringTargets(client api.Client, q string) (model.Vector, error) {
 		return nil, err
 	}
 	return castToVector, nil
+}
+
+func ScheduleMonitoring(config Config, configPath string, interval int) {
+	for {
+		// Run the Monitor
+		resultMap, results, err := StartMonitoring(&config, configPath)
+		if err != nil {
+			logrus.Error("Error starting monitoring: ", err)
+			// panic(err)
+		}
+
+		// Data Structure for meta data results
+		for _, result := range results {
+			dataWrapper := aggregate.NewDataVectorWrapper(result, resultMap)
+			// fmt.Println("MetaDataWrapper: ", metaDataWrapper)
+
+			err = dataWrapper.CreateDataOutput()
+			if err != nil {
+				logrus.Error("Error creating output: ", err)
+			}
+		}
+		interval := config.ServerConfigurations.Prometheus.TargetServer.FetchInterval
+		time.Sleep(time.Duration(interval) * time.Second)
+	}
 }
