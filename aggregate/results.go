@@ -4,6 +4,8 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
+	"sort"
+	"sync"
 	"time"
 
 	"github.com/prometheus/common/model"
@@ -13,6 +15,7 @@ import (
 type DataVectorWrapper struct {
 	Result    model.Vector                                    // Needed only for slurm_job_id metadata
 	ResultMap map[string]map[string]map[string][]model.Vector // Holds the map according to the config structure
+	mu        sync.Mutex
 }
 
 func NewDataVectorWrapper(r model.Vector, m map[string]map[string]map[string][]model.Vector) *DataVectorWrapper {
@@ -32,6 +35,9 @@ func (v *DataVectorWrapper) CreateDataOutput() error {
 }
 
 func CreateMonitoringOutput(v *DataVectorWrapper) error {
+	threadCounter := 0
+	var wg sync.WaitGroup
+
 	err := os.Mkdir("results", 0755)
 	if err != nil && !os.IsExist(err) {
 		logrus.Error("Error creating results directory: ", err)
@@ -56,10 +62,18 @@ func CreateMonitoringOutput(v *DataVectorWrapper) error {
 				for _, vector := range vectors {
 					for _, value := range vector {
 						timestamp := value.Timestamp.Time()
-						logrus.Info("Metrics are written at time: ", timestamp)
-						v.WriteToCSV(queryFile, timestamp, model.LabelSet(value.Metric), float64(value.Value))
+						wg.Add(1)
+						// logrus.Info("Metrics are written at time: ", timestamp)
+						threadCounter++
+						go func(value model.Sample) {
+							defer wg.Done()
+							v.mu.Lock()
+							defer v.mu.Unlock()
+							v.WriteToCSV(queryFile, timestamp, model.LabelSet(value.Metric), float64(value.Value))
+						}(*value)
 					}
 				}
+				logrus.Info("Threads writing Metrics: ", threadCounter)
 			}
 		}
 	}
@@ -81,7 +95,7 @@ func (v *DataVectorWrapper) WriteToCSV(outputFile *os.File, timestamp time.Time,
 		}
 	}
 
-	// // Write data to the file.
+	// Write data to the file.
 	values := ReadLabelValues(timestamp, metricLabels, value)
 	if err := w.Write(values); err != nil {
 		logrus.Error("Error writing to CSV")
@@ -117,15 +131,13 @@ func GetFileName(targetFolder, fileIdentifier string) string {
 }
 
 func ReadHeaderFields(labelNames model.LabelSet) []string {
-	header := []string{}
-	// Write timestamp as first table entry
-	header = append(header, "value")
-	header = append(header, "unix timestamp")
+	header := []string{"unix timestamp", "value"}
+	keys := make([]string, 0, len(labelNames))
 	for key := range labelNames {
-		castLabels := string(key)
-		header = append(header, castLabels)
+		keys = append(keys, string(key))
 	}
-	// sort.Strings(header)
+	sort.Strings(keys)
+	header = append(header, keys...)
 	return header
 }
 

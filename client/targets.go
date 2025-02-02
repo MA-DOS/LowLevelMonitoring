@@ -50,15 +50,11 @@ func EscapeQuery(query string) string {
 }
 
 func processSource(source interface{}, queriesPerDataSource map[string][]tuple.T2[string, string]) {
-	sourceMap, ok := source.(map[string]interface{})
-	if !ok {
-		logrus.Warn("Source not defined for MetaData metrics")
-		return
-	}
+	sourceMap := source.(map[string]interface{})
 
 	sourceName, ok := sourceMap["source"].(string)
 	if !ok {
-		logrus.Warn("Source name not defined for MetaData metrics")
+		logrus.Warn("Source name not defined...")
 		return
 	}
 

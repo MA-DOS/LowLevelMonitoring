@@ -115,7 +115,7 @@ func ScheduleMonitoring(config Config, configPath string, interval int) {
 			// panic(err)
 		}
 
-		// Data Structure for meta data results
+		// Data Structure for results
 		for _, result := range results {
 			dataWrapper := aggregate.NewDataVectorWrapper(result, resultMap)
 			// fmt.Println("MetaDataWrapper: ", metaDataWrapper)
