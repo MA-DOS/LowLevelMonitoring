@@ -21,42 +21,55 @@ type WorkflowTask struct {
 }
 
 func GetWorkflowRun(f string) bool {
-	var registerWorkflow bool
+	var registerNewWorkflow bool
+	var registerRunningWorkflow bool
 
 	file, err := os.Open(f)
 	if err != nil {
-		fmt.Println("Error opening file")
+		logrus.Error("Error opening file")
 	}
 	defer file.Close()
 
-	// TODO: Date detection does not work.
-	today := time.Now().Truncate(time.Minute).Format("Jan-02 15:04")
-	fmt.Print(today)
+	todayHourMinute := time.Now().Truncate(time.Minute).Format("Jan-02 15:04")
+	todayHour := time.Now().Truncate(time.Hour).Format("Jan-02 15")
+	fmt.Println(todayHourMinute)
+	fmt.Println(todayHour)
 
-	logTime := bufio.NewScanner(file)
-	for logTime.Scan() {
-		line := logTime.Text()
-		if strings.Contains(line, today) {
-			fmt.Print(line)
-			registerWorkflow = true
-		} else {
-			registerWorkflow = false
-		}
+	reader := bufio.NewReader(file)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		logrus.Error("Error reading file")
+	}
+	if strings.Contains(line, todayHourMinute) {
+		logrus.Info("Found today's date in Nextflow logs!")
+		registerNewWorkflow = true
+	} else if strings.Contains(line, todayHour) {
+		logrus.Info("No new workflow detected")
+		registerRunningWorkflow = true
+	} else {
+		logrus.Info("Nextflow log does not hold a Workflow run for the kcurrent time...")
+		registerNewWorkflow = false
+		registerRunningWorkflow = false
+	}
 
-		scanner := bufio.NewScanner(file)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if strings.Contains(line, "Workflow started") && registerWorkflow {
-				logrus.Info("New Workflow Run detected")
-				break
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				time.Sleep(1 * time.Second)
+				continue
 			}
-		}
-		if err := scanner.Err(); err != nil {
 			logrus.Error("Error reading file")
 			return false
 		}
+		if strings.Contains(line, "Workflow started") && registerNewWorkflow {
+			logrus.Info("New Workflow Run detected")
+			return true
+		} else if registerRunningWorkflow {
+			logrus.Info("Workflow is maybe running or needs to be started...")
+			return false
+		}
 	}
-	return true
 }
 
 func (wft *WorkflowTask) WatchCompletedTasks(f string) error {
@@ -101,7 +114,7 @@ func (wft *WorkflowTask) WatchCompletedTasks(f string) error {
 			// wft.Exited = exited
 			// wft.Workdir = workdir
 			// logrus.Infof("Found	Task %s with job ID %s as COMPLETED", taskName, jobID)
-			fmt.Print(wft.NameToID)
+			// fmt.Print(wft.NameToID)
 		}
 	}
 }

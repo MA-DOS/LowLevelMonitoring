@@ -108,14 +108,14 @@ func FetchMonitoringTargets(client api.Client, q string) (model.Vector, error) {
 
 func ScheduleMonitoring(config Config, configPath string, interval int) {
 	for {
-		// Run the Monitor
+		// Run the Monitor against Prometheus.
 		resultMap, results, err := StartMonitoring(&config, configPath)
 		if err != nil {
 			logrus.Error("Error starting monitoring: ", err)
 			// panic(err)
 		}
 
-		// Data Structure for results
+		// Data Structure for results.
 		for _, result := range results {
 			dataWrapper := aggregate.NewDataVectorWrapper(result, resultMap)
 			// fmt.Println("MetaDataWrapper: ", metaDataWrapper)
@@ -126,6 +126,17 @@ func ScheduleMonitoring(config Config, configPath string, interval int) {
 			}
 		}
 		interval := config.ServerConfigurations.Prometheus.TargetServer.FetchInterval
+
+		// Run the monitor against Docker Daemon.
+		// nextflowContainer := watcher.NextflowContainer{}
+		// containers := nextflowContainer.ListContainers()
+		// nextflowContainer.InspectContainer(containers)
+
+		// Run the observer against the Nextflow log.
+		// taskFromLog := watcher.WorkflowTask{}
+		// taskFromLog.WatchCompletedTasks("/home/nfomin3/dev/SlurmSetup/nextflow/chipseq/.nextflow.log")
+
+		// Sleep for the configured interval before polling again.
 		time.Sleep(time.Duration(interval) * time.Second)
 	}
 }
