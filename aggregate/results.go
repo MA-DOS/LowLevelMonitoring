@@ -25,6 +25,28 @@ func NewDataVectorWrapper(r model.Vector, m map[string]map[string]map[string][]m
 	}
 }
 
+// func WriteContainerDataToCSV() error {
+// 	err := CreateOutputFolder("dockerd")
+// 	if err != nil {
+// 		logrus.Error("Error creating folder: ", err)
+// 		return err
+// 	}
+// 	containerFile := CreateFile("dockerd", "containers.csv")
+// 	w := csv.NewWriter(containerFile)
+// 	w.Comma = ','
+// 	defer w.Flush()
+
+// 	// Write header to file.
+// 	header := []string{"name", "pid", "container_id", "work_dir"}
+// 	w.Write(header)
+
+// 	nextflowContainer := watcher.NextflowContainer{}
+// 	containers := nextflowContainer.ListContainers()
+// 	result := nextflowContainer.InspectContainer(containers)
+// 	stringResult := result.String()
+// 	return nil
+// }
+
 // This func is called on a MetaDataVectorWrapper object so it can access the fileds of the struct.
 func (v *DataVectorWrapper) CreateDataOutput() error {
 	err := CreateMonitoringOutput(v)
@@ -63,7 +85,6 @@ func CreateMonitoringOutput(v *DataVectorWrapper) error {
 					for _, value := range vector {
 						timestamp := value.Timestamp.Time()
 						wg.Add(1)
-						// logrus.Info("Metrics are written at time: ", timestamp)
 						threadCounter++
 						go func(value model.Sample) {
 							defer wg.Done()
@@ -73,7 +94,6 @@ func CreateMonitoringOutput(v *DataVectorWrapper) error {
 						}(*value)
 					}
 				}
-				logrus.Info("Threads writing Metrics: ", threadCounter)
 			}
 		}
 	}
@@ -131,7 +151,9 @@ func GetFileName(targetFolder, fileIdentifier string) string {
 }
 
 func ReadHeaderFields(labelNames model.LabelSet) []string {
-	header := []string{"unix timestamp", "value"}
+	// Check the current amount of fields in the header and check if it differs from the labelNames.
+	// If it does, then we need to update the header.
+	header := []string{"timestamp", "value"}
 	keys := make([]string, 0, len(labelNames))
 	for key := range labelNames {
 		keys = append(keys, string(key))
@@ -144,11 +166,27 @@ func ReadHeaderFields(labelNames model.LabelSet) []string {
 func ReadLabelValues(timestamp time.Time, labelValues model.LabelSet, value float64) []string {
 	record := []string{
 		timestamp.String(),
-		labelValues.String(),
 		fmt.Sprintf("%f", value),
+	}
+	keys := make([]string, 0, len(labelValues))
+	for key := range labelValues {
+		keys = append(keys, string(key))
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		record = append(record, string(labelValues[model.LabelName(key)]))
 	}
 	return record
 }
+
+// func ReadLabelValues(timestamp time.Time, labelValues model.LabelSet, value float64) []string {
+// 	record := []string{
+// 		timestamp.String(),
+// 		labelValues.String(),
+// 		fmt.Sprintf("%f", value),
+// 	}
+// 	return record
+// }
 
 func GetFileIdentifier(sample model.Sample) string {
 	return sample.Value.String()

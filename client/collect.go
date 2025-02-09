@@ -29,7 +29,6 @@ func FetchMonitoringSources(c *Config, queries map[string]map[string][]tuple.T2[
 		}
 	}
 	wg.Wait()
-	logrus.Info("Threads fetching metrics: ", threadCounter)
 	return resultsWithCategories, resultsWithoutCategories, nil
 }
 

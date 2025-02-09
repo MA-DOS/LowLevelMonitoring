@@ -2,13 +2,16 @@ package watcher
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
+	"os"
 	"regexp"
 	"sync"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
+	"github.com/sirupsen/logrus"
 )
 
 type NextflowContainer struct {
@@ -18,7 +21,7 @@ type NextflowContainer struct {
 	WorkDir     string `json:"work_dir"`
 }
 
-func (c *NextflowContainer) InspectContainer(containers []types.Container) (container NextflowContainer) {
+func (c *NextflowContainer) InspectContainer(containers []types.Container) (containerData NextflowContainer) {
 	apiClient, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		panic(err)
@@ -63,8 +66,43 @@ func (c *NextflowContainer) InspectContainer(containers []types.Container) (cont
 			// fmt.Println("Not a Nextflow container!")
 		}(container)
 	}
+
 	wg.Wait()
-	return nextflowContainer
+	
+	// Write stuff to output
+	path := "results"
+	fileName := "nextflow_containers.csv"
+	fullPath := fmt.Sprintf("%s/%s", path, fileName)
+	file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		logrus.Error("Error opening file: ", err)
+	}
+
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	// Write CSV header
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return
+	}
+	if fileInfo.Size() == 0 {
+		if err := writer.Write([]string{"Name", "PID", "ContainerID", "WorkDir"}); err != nil {
+			logrus.Error("Error writing to CSV")
+		}
+	}
+
+	for _, container := range nextflowContainers {
+		writer.Write([]string{
+			container.Name,
+			fmt.Sprintf("%d", container.PID),
+			container.ContainerID,
+			container.WorkDir,
+		})
+	}
+	return containerData
 }
 
 func (c *NextflowContainer) ListContainers() []types.Container {

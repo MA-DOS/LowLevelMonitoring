@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/MA-DOS/LowLevelMonitoring/aggregate"
+	"github.com/MA-DOS/LowLevelMonitoring/watcher"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
@@ -114,7 +115,6 @@ func ScheduleMonitoring(config Config, configPath string, interval int) {
 			logrus.Error("Error starting monitoring: ", err)
 			// panic(err)
 		}
-
 		// Data Structure for results.
 		for _, result := range results {
 			dataWrapper := aggregate.NewDataVectorWrapper(result, resultMap)
@@ -128,9 +128,9 @@ func ScheduleMonitoring(config Config, configPath string, interval int) {
 		interval := config.ServerConfigurations.Prometheus.TargetServer.FetchInterval
 
 		// Run the monitor against Docker Daemon.
-		// nextflowContainer := watcher.NextflowContainer{}
-		// containers := nextflowContainer.ListContainers()
-		// nextflowContainer.InspectContainer(containers)
+		nextflowContainer := watcher.NextflowContainer{}
+		containers := nextflowContainer.ListContainers()
+		nextflowContainer.InspectContainer(containers)
 
 		// Run the observer against the Nextflow log.
 		// taskFromLog := watcher.WorkflowTask{}
