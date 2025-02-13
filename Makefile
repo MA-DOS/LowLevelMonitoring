@@ -14,7 +14,7 @@ build:
 
 # Run the application
 run: build
-	$(BUILD_DIR)/$(APP_NAME)
+	sudo $(BUILD_DIR)/$(APP_NAME)
 
 # Clean the build directory
 clean:

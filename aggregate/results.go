@@ -4,8 +4,8 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
-	"sync"
 
 	"github.com/prometheus/common/model"
 	"github.com/sirupsen/logrus"
@@ -14,7 +14,7 @@ import (
 type DataVectorWrapper struct {
 	Result    model.Vector                                  // Needed only for slurm_job_id metadata
 	ResultMap map[string]map[string]map[string]model.Vector // Holds the map according to the config structure
-	mu        sync.Mutex
+	// mu        sync.Mutex
 }
 
 func NewDataVectorWrapper(m map[string]map[string]map[string]model.Vector) *DataVectorWrapper {
@@ -60,7 +60,7 @@ func CreateMonitoringOutput(v *DataVectorWrapper) error {
 					// logrus.Infof("Writing Sample - Timestamp: %s, ID: %s, Value: %f",
 					// timestamp, sample.Metric["id"], float64(sample.Value))
 
-					v.WriteToCSV(queryFile, timestamp, model.LabelSet(sample.Metric), float64(sample.Value))
+					v.WriteToCSV(queryFolder, queryFile, timestamp, model.LabelSet(sample.Metric), float64(sample.Value))
 				}
 			}
 		}
@@ -68,106 +68,7 @@ func CreateMonitoringOutput(v *DataVectorWrapper) error {
 	return nil
 }
 
-// func CreateMonitoringOutput(v *DataVectorWrapper) error {
-// 	var wg sync.WaitGroup
-// 	err := os.Mkdir("results", 0755)
-// 	if err != nil && !os.IsExist(err) {
-// 		logrus.Error("Error creating results directory: ", err)
-// 		return err
-// 	}
-
-// 	for target, dataSources := range v.ResultMap {
-// 		targetFolder := fmt.Sprintf("results/%s", target)
-// 		CreateOutputFolder(targetFolder)
-
-// 		for dataSource, queryNames := range dataSources {
-// 			sourceFolder := fmt.Sprintf("%s/%s", targetFolder, dataSource)
-// 			CreateOutputFolder(sourceFolder)
-
-// 			for queryName, samples := range queryNames { // `samples` is of type `model.Vector` (which is []model.Sample)
-// 				queryFolder := fmt.Sprintf("%s/%s", sourceFolder, queryName)
-// 				CreateOutputFolder(queryFolder)
-
-// 				queryFile := CreateFile(queryFolder, queryName+".csv")
-
-// 				for _, sample := range samples {
-// 					timestamp := sample.Timestamp.Time().Format("15:04:05.000")
-// 					fmt.Printf("Timestamp: %s\n", timestamp)
-// 					wg.Add(1)
-// 					go func(sample model.Sample, timestamp string) {
-// 						defer wg.Done()
-// 						v.mu.Lock()
-// 						defer v.mu.Unlock()
-// 						v.WriteToCSV(queryFile, timestamp, model.LabelSet(sample.Metric), float64(sample.Value))
-// 					}(*sample, timestamp)
-// 				}
-// 				// fmt.Printf("Timestamp Counter: %d\n", timestampCounter)
-// 			}
-// 		}
-// 	}
-// 	return nil
-// }
-
-// func CreateMonitoringOutput(v *DataVectorWrapper) error {
-// 	// threadCounter := 0
-// 	// var wg sync.WaitGroup
-
-// 	err := os.Mkdir("results", 0755)
-// 	if err != nil && !os.IsExist(err) {
-// 		logrus.Error("Error creating results directory: ", err)
-// 		return err
-// 	}
-
-// 	for target, dataSources := range v.ResultMap {
-
-// 		targetFolder := fmt.Sprintf("results/%s", target)
-// 		CreateOutputFolder(targetFolder)
-
-// 		for dataSource, queryNames := range dataSources {
-// 			sourceFolder := fmt.Sprintf("%s/%s", targetFolder, dataSource)
-// 			CreateOutputFolder(sourceFolder)
-
-// 			for queryName, vectors := range queryNames {
-// 				queryFolder := fmt.Sprintf("%s/%s", sourceFolder, queryName)
-// 				CreateOutputFolder(queryFolder)
-
-// 				queryFile := CreateFile(queryFolder, queryName+".csv")
-
-// 				for _, vector := range vectors {
-// 					// fmt.Printf("Result Vector: %s", vector)
-
-// 					if len(vector) == 0 {
-// 						continue
-// 					}
-
-// 					for _, value := range vector {
-// 						// fmt.Printf("Result Vector: %s", vector)
-
-// 						timestamp := value.Timestamp.Time().Format("15:04:05")
-// 						// fmt.Printf("Timestamp: %s\n", timestamp)
-// 						// timestamp := value.Timestamp.Unix()
-// 						// TODO: timestamp is incorrectly computed here.
-// 						// timestamp := value.Timestamp.Time().Format("15:04:05")
-// 						// wg.Add(1)
-// 						// threadCounter++
-// 						// go func(value model.Sample, timestamp string) {
-// 						// 	defer wg.Done()
-// 						// 	v.mu.Lock()
-// 						fmt.Printf("Timestamp: %s\n", timestamp)
-// 						// fmt.Printf("Query Samples: %s", value)
-// 						// defer v.mu.Unlock()
-// 						// timestamp := value.Timestamp.Time().Format("15:04:05")
-// 						v.WriteToCSV(queryFile, timestamp, model.LabelSet(value.Metric), float64(value.Value))
-// 						// }(*value, timestamp)
-// 					}
-// 				}
-// 			}
-// 		}
-// 	}
-// 	return nil
-// }
-
-func (v *DataVectorWrapper) WriteToCSV(outputFile *os.File, timestamp string, metricLabels model.LabelSet, value float64) error {
+func (v *DataVectorWrapper) WriteToCSV(folder string, outputFile *os.File, timestamp string, metricLabels model.LabelSet, value float64) error {
 	w := csv.NewWriter(outputFile)
 	w.Comma = ','
 	defer w.Flush()
@@ -183,8 +84,19 @@ func (v *DataVectorWrapper) WriteToCSV(outputFile *os.File, timestamp string, me
 	}
 
 	// Write data to the file.
-	// TODO: Maybe not write the complete query output but sort by task name.
 	values := ReadLabelValues(metricLabels, timestamp, value)
+
+	pattern := `^nxf-[A-Za-z0-9]+$`
+	re := regexp.MustCompile(pattern)
+
+	for _, taskName := range values {
+		// fmt.Printf("Value: %f", value)
+		if re.MatchString(taskName) {
+			// fmt.Println("Found nextflow container")
+			FilterNextflowJobs(folder, taskName, values)
+			return nil
+		}
+	}
 	if err := w.Write(values); err != nil {
 		logrus.Error("Error writing to CSV")
 		return err
@@ -192,15 +104,40 @@ func (v *DataVectorWrapper) WriteToCSV(outputFile *os.File, timestamp string, me
 	return nil
 }
 
+func FilterNextflowJobs(queryFolder string, taskName string, values []string) {
+	containerName := taskName
+
+	taskFolder, err := CreateOutputFolder(fmt.Sprintf("%s/%s", queryFolder, containerName))
+	if err != nil {
+		logrus.Error("Error creating task folder: ", err)
+	}
+	taskFile := CreateFile(taskFolder, containerName+".csv")
+	if taskFile == nil {
+		logrus.Error("Error creating task file")
+		return
+	}
+
+	tw := csv.NewWriter(taskFile)
+	tw.Comma = ','
+	defer tw.Flush()
+	if err := tw.Write(values); err != nil {
+		logrus.Error("Error writing to CSV")
+
+	}
+	// fmt.Println("Values: ", values)
+
+}
+
 // Helper to create folder.
-func CreateOutputFolder(folderName string) error {
+func CreateOutputFolder(folderName string) (path string, err error) {
 	if _, err := os.Stat(folderName); os.IsNotExist(err) {
-		err := os.Mkdir(folderName, 0755)
+		err := os.MkdirAll(folderName, 0755)
 		if err != nil {
 			logrus.Error("Error creating folder: ", err)
+			return "", err
 		}
 	}
-	return nil
+	return folderName, nil
 }
 
 func CreateFile(path, fileName string) *os.File {
