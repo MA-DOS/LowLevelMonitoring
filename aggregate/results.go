@@ -6,46 +6,22 @@ import (
 	"os"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/prometheus/common/model"
 	"github.com/sirupsen/logrus"
 )
 
 type DataVectorWrapper struct {
-	Result    model.Vector                                    // Needed only for slurm_job_id metadata
-	ResultMap map[string]map[string]map[string][]model.Vector // Holds the map according to the config structure
+	Result    model.Vector                                  // Needed only for slurm_job_id metadata
+	ResultMap map[string]map[string]map[string]model.Vector // Holds the map according to the config structure
 	mu        sync.Mutex
 }
 
-func NewDataVectorWrapper(r model.Vector, m map[string]map[string]map[string][]model.Vector) *DataVectorWrapper {
+func NewDataVectorWrapper(m map[string]map[string]map[string]model.Vector) *DataVectorWrapper {
 	return &DataVectorWrapper{
-		Result:    r,
 		ResultMap: m,
 	}
 }
-
-// func WriteContainerDataToCSV() error {
-// 	err := CreateOutputFolder("dockerd")
-// 	if err != nil {
-// 		logrus.Error("Error creating folder: ", err)
-// 		return err
-// 	}
-// 	containerFile := CreateFile("dockerd", "containers.csv")
-// 	w := csv.NewWriter(containerFile)
-// 	w.Comma = ','
-// 	defer w.Flush()
-
-// 	// Write header to file.
-// 	header := []string{"name", "pid", "container_id", "work_dir"}
-// 	w.Write(header)
-
-// 	nextflowContainer := watcher.NextflowContainer{}
-// 	containers := nextflowContainer.ListContainers()
-// 	result := nextflowContainer.InspectContainer(containers)
-// 	stringResult := result.String()
-// 	return nil
-// }
 
 // This func is called on a MetaDataVectorWrapper object so it can access the fileds of the struct.
 func (v *DataVectorWrapper) CreateDataOutput() error {
@@ -56,10 +32,8 @@ func (v *DataVectorWrapper) CreateDataOutput() error {
 	return nil
 }
 
+// TODO: Go over the queries with separate go routines.
 func CreateMonitoringOutput(v *DataVectorWrapper) error {
-	threadCounter := 0
-	var wg sync.WaitGroup
-
 	err := os.Mkdir("results", 0755)
 	if err != nil && !os.IsExist(err) {
 		logrus.Error("Error creating results directory: ", err)
@@ -67,7 +41,6 @@ func CreateMonitoringOutput(v *DataVectorWrapper) error {
 	}
 
 	for target, dataSources := range v.ResultMap {
-
 		targetFolder := fmt.Sprintf("results/%s", target)
 		CreateOutputFolder(targetFolder)
 
@@ -75,24 +48,19 @@ func CreateMonitoringOutput(v *DataVectorWrapper) error {
 			sourceFolder := fmt.Sprintf("%s/%s", targetFolder, dataSource)
 			CreateOutputFolder(sourceFolder)
 
-			for queryName, vectors := range queryNames {
+			for queryName, samples := range queryNames {
 				queryFolder := fmt.Sprintf("%s/%s", sourceFolder, queryName)
 				CreateOutputFolder(queryFolder)
 
 				queryFile := CreateFile(queryFolder, queryName+".csv")
 
-				for _, vector := range vectors {
-					for _, value := range vector {
-						timestamp := value.Timestamp.Time()
-						wg.Add(1)
-						threadCounter++
-						go func(value model.Sample) {
-							defer wg.Done()
-							v.mu.Lock()
-							defer v.mu.Unlock()
-							v.WriteToCSV(queryFile, timestamp, model.LabelSet(value.Metric), float64(value.Value))
-						}(*value)
-					}
+				for _, sample := range samples {
+					timestamp := sample.Timestamp.Time().Format("15:04:05.000")
+
+					// logrus.Infof("Writing Sample - Timestamp: %s, ID: %s, Value: %f",
+					// timestamp, sample.Metric["id"], float64(sample.Value))
+
+					v.WriteToCSV(queryFile, timestamp, model.LabelSet(sample.Metric), float64(sample.Value))
 				}
 			}
 		}
@@ -100,7 +68,106 @@ func CreateMonitoringOutput(v *DataVectorWrapper) error {
 	return nil
 }
 
-func (v *DataVectorWrapper) WriteToCSV(outputFile *os.File, timestamp time.Time, metricLabels model.LabelSet, value float64) error {
+// func CreateMonitoringOutput(v *DataVectorWrapper) error {
+// 	var wg sync.WaitGroup
+// 	err := os.Mkdir("results", 0755)
+// 	if err != nil && !os.IsExist(err) {
+// 		logrus.Error("Error creating results directory: ", err)
+// 		return err
+// 	}
+
+// 	for target, dataSources := range v.ResultMap {
+// 		targetFolder := fmt.Sprintf("results/%s", target)
+// 		CreateOutputFolder(targetFolder)
+
+// 		for dataSource, queryNames := range dataSources {
+// 			sourceFolder := fmt.Sprintf("%s/%s", targetFolder, dataSource)
+// 			CreateOutputFolder(sourceFolder)
+
+// 			for queryName, samples := range queryNames { // `samples` is of type `model.Vector` (which is []model.Sample)
+// 				queryFolder := fmt.Sprintf("%s/%s", sourceFolder, queryName)
+// 				CreateOutputFolder(queryFolder)
+
+// 				queryFile := CreateFile(queryFolder, queryName+".csv")
+
+// 				for _, sample := range samples {
+// 					timestamp := sample.Timestamp.Time().Format("15:04:05.000")
+// 					fmt.Printf("Timestamp: %s\n", timestamp)
+// 					wg.Add(1)
+// 					go func(sample model.Sample, timestamp string) {
+// 						defer wg.Done()
+// 						v.mu.Lock()
+// 						defer v.mu.Unlock()
+// 						v.WriteToCSV(queryFile, timestamp, model.LabelSet(sample.Metric), float64(sample.Value))
+// 					}(*sample, timestamp)
+// 				}
+// 				// fmt.Printf("Timestamp Counter: %d\n", timestampCounter)
+// 			}
+// 		}
+// 	}
+// 	return nil
+// }
+
+// func CreateMonitoringOutput(v *DataVectorWrapper) error {
+// 	// threadCounter := 0
+// 	// var wg sync.WaitGroup
+
+// 	err := os.Mkdir("results", 0755)
+// 	if err != nil && !os.IsExist(err) {
+// 		logrus.Error("Error creating results directory: ", err)
+// 		return err
+// 	}
+
+// 	for target, dataSources := range v.ResultMap {
+
+// 		targetFolder := fmt.Sprintf("results/%s", target)
+// 		CreateOutputFolder(targetFolder)
+
+// 		for dataSource, queryNames := range dataSources {
+// 			sourceFolder := fmt.Sprintf("%s/%s", targetFolder, dataSource)
+// 			CreateOutputFolder(sourceFolder)
+
+// 			for queryName, vectors := range queryNames {
+// 				queryFolder := fmt.Sprintf("%s/%s", sourceFolder, queryName)
+// 				CreateOutputFolder(queryFolder)
+
+// 				queryFile := CreateFile(queryFolder, queryName+".csv")
+
+// 				for _, vector := range vectors {
+// 					// fmt.Printf("Result Vector: %s", vector)
+
+// 					if len(vector) == 0 {
+// 						continue
+// 					}
+
+// 					for _, value := range vector {
+// 						// fmt.Printf("Result Vector: %s", vector)
+
+// 						timestamp := value.Timestamp.Time().Format("15:04:05")
+// 						// fmt.Printf("Timestamp: %s\n", timestamp)
+// 						// timestamp := value.Timestamp.Unix()
+// 						// TODO: timestamp is incorrectly computed here.
+// 						// timestamp := value.Timestamp.Time().Format("15:04:05")
+// 						// wg.Add(1)
+// 						// threadCounter++
+// 						// go func(value model.Sample, timestamp string) {
+// 						// 	defer wg.Done()
+// 						// 	v.mu.Lock()
+// 						fmt.Printf("Timestamp: %s\n", timestamp)
+// 						// fmt.Printf("Query Samples: %s", value)
+// 						// defer v.mu.Unlock()
+// 						// timestamp := value.Timestamp.Time().Format("15:04:05")
+// 						v.WriteToCSV(queryFile, timestamp, model.LabelSet(value.Metric), float64(value.Value))
+// 						// }(*value, timestamp)
+// 					}
+// 				}
+// 			}
+// 		}
+// 	}
+// 	return nil
+// }
+
+func (v *DataVectorWrapper) WriteToCSV(outputFile *os.File, timestamp string, metricLabels model.LabelSet, value float64) error {
 	w := csv.NewWriter(outputFile)
 	w.Comma = ','
 	defer w.Flush()
@@ -116,7 +183,8 @@ func (v *DataVectorWrapper) WriteToCSV(outputFile *os.File, timestamp time.Time,
 	}
 
 	// Write data to the file.
-	values := ReadLabelValues(timestamp, metricLabels, value)
+	// TODO: Maybe not write the complete query output but sort by task name.
+	values := ReadLabelValues(metricLabels, timestamp, value)
 	if err := w.Write(values); err != nil {
 		logrus.Error("Error writing to CSV")
 		return err
@@ -163,11 +231,13 @@ func ReadHeaderFields(labelNames model.LabelSet) []string {
 	return header
 }
 
-func ReadLabelValues(timestamp time.Time, labelValues model.LabelSet, value float64) []string {
+func ReadLabelValues(labelValues model.LabelSet, timestamp string, value float64) []string {
 	record := []string{
-		timestamp.String(),
+		// strconv.FormatInt(timestamp, 10),
+		timestamp,
 		fmt.Sprintf("%f", value),
 	}
+
 	keys := make([]string, 0, len(labelValues))
 	for key := range labelValues {
 		keys = append(keys, string(key))
@@ -179,19 +249,10 @@ func ReadLabelValues(timestamp time.Time, labelValues model.LabelSet, value floa
 	return record
 }
 
-// func ReadLabelValues(timestamp time.Time, labelValues model.LabelSet, value float64) []string {
-// 	record := []string{
-// 		timestamp.String(),
-// 		labelValues.String(),
-// 		fmt.Sprintf("%f", value),
-// 	}
-// 	return record
-// }
-
 func GetFileIdentifier(sample model.Sample) string {
 	return sample.Value.String()
 }
 
-func GetTimeStamp(sample model.Sample) time.Time {
-	return sample.Timestamp.Time()
+func GetTimeStamp(sample model.Sample) string {
+	return sample.Timestamp.Time().Format("15:04:05")
 }

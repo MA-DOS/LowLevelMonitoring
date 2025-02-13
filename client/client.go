@@ -110,19 +110,30 @@ func FetchMonitoringTargets(client api.Client, q string) (model.Vector, error) {
 func ScheduleMonitoring(config Config, configPath string, interval int) {
 	for {
 		// Run the Monitor against Prometheus.
-		resultMap, results, err := StartMonitoring(&config, configPath)
+		resultMap, err := StartMonitoring(&config, configPath)
 		if err != nil {
 			logrus.Error("Error starting monitoring: ", err)
 			// panic(err)
 		}
 		// Data Structure for results.
-		for _, result := range results {
-			dataWrapper := aggregate.NewDataVectorWrapper(result, resultMap)
-			// fmt.Println("MetaDataWrapper: ", metaDataWrapper)
+		for target, dataSources := range resultMap {
+			for dataSource, queryNames := range dataSources {
+				for queryName, samples := range queryNames {
+					dataWrapper := aggregate.NewDataVectorWrapper(map[string]map[string]map[string]model.Vector{
+						target: {
+							dataSource: {
+								queryName: samples,
+							},
+						},
+					})
+					// Use the result variable
+					// logrus.Infof("Processing result: %v", result)
 
-			err = dataWrapper.CreateDataOutput()
-			if err != nil {
-				logrus.Error("Error creating output: ", err)
+					err = dataWrapper.CreateDataOutput()
+					if err != nil {
+						logrus.Error("Error creating output: ", err)
+					}
+				}
 			}
 		}
 		interval := config.ServerConfigurations.Prometheus.TargetServer.FetchInterval

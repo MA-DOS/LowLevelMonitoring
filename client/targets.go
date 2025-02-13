@@ -89,7 +89,7 @@ func BuildMetaDataQueries(mt map[string]interface{}) map[string][]tuple.T2[strin
 
 	taskMetadata, ok := monitoringTargets["task_metadata"].(map[string]interface{})
 	if !ok || !isEnabled(taskMetadata) {
-		logrus.Warn("MetaData metrics not enabled")
+		// logrus.Warn("MetaData metrics not enabled")
 		return queriesPerDataSource
 	}
 
@@ -118,7 +118,7 @@ func BuildCPUQueries(mt map[string]interface{}) map[string][]tuple.T2[string, st
 	}
 	taskCpuData, ok := monitoringTargets["cpu"].(map[string]interface{})
 	if !ok || !isEnabled(taskCpuData) {
-		logrus.Warn("CPU metrics not enabled")
+		// logrus.Warn("CPU metrics not enabled")
 		return queriesPerDataSource
 	}
 
@@ -142,7 +142,7 @@ func BuildMemoryQueries(mt map[string]interface{}) map[string][]tuple.T2[string,
 	}
 	taskMemoryData, ok := monitoringTargets["memory"].(map[string]interface{})
 	if !ok || !isEnabled(taskMemoryData) {
-		logrus.Warn("Memory metrics not enabled")
+		// logrus.Warn("Memory metrics not enabled")
 		return nil
 	}
 
@@ -166,7 +166,7 @@ func BuildDiskQueries(mt map[string]interface{}) map[string][]tuple.T2[string, s
 	}
 	taskDiskData, ok := monitoringTargets["disk"].(map[string]interface{})
 	if !ok || !isEnabled(taskDiskData) {
-		logrus.Warn("Disk metrics not enabled")
+		// logrus.Warn("Disk metrics not enabled")
 		return queriesPerDataSource
 	}
 
@@ -190,7 +190,7 @@ func BuildNetworkQueries(mt map[string]interface{}) map[string][]tuple.T2[string
 	}
 	taskNetworkData, ok := monitoringTargets["network"].(map[string]interface{})
 	if !ok || !isEnabled(taskNetworkData) {
-		logrus.Warn("Network metrics not enabled")
+		// logrus.Warn("Network metrics not enabled")
 		return queriesPerDataSource
 	}
 
@@ -214,7 +214,7 @@ func BuildEnergyQueries(mt map[string]interface{}) map[string][]tuple.T2[string,
 	}
 	taskEnergyData, ok := monitoringTargets["energy"].(map[string]interface{})
 	if !ok || !isEnabled(taskEnergyData) {
-		logrus.Warn("Energy metrics not enabled")
+		// logrus.Warn("Energy metrics not enabled")
 		return queriesPerDataSource
 	}
 

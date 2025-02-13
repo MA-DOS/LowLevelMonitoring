@@ -55,12 +55,12 @@ func (c *NextflowContainer) InspectContainer(containers []types.Container) (cont
 			}
 
 			if re.MatchString(ctrState.Name) {
-				fmt.Println("Nextflow container found!")
+				// fmt.Println("Nextflow container found!")
 				mu.Lock()
 				nextflowContainers = append(nextflowContainers, nextflowContainer)
 				mu.Unlock()
 				// fmt.Println(ctrState.Name)
-				fmt.Println(nextflowContainer)
+				// fmt.Println(nextflowContainer)
 				// fmt.Println(ctrState.State.Pid)
 			}
 			// fmt.Println("Not a Nextflow container!")
@@ -68,7 +68,7 @@ func (c *NextflowContainer) InspectContainer(containers []types.Container) (cont
 	}
 
 	wg.Wait()
-	
+
 	// Write stuff to output
 	path := "results"
 	fileName := "nextflow_containers.csv"

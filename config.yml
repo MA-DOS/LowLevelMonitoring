@@ -28,8 +28,8 @@ monitoring_targets:
     data_sources:
     - source: cAdvisor 
       metrics:
-      - name: container_cpu_usage_seconds_total
-        query: max by (name, id, image, cpu, job)(container_cpu_usage_seconds_total{name=~"nxf-.*"})
+      - name: container_cpu_user_seconds_total
+        query: max by (name, id, image,job)(container_cpu_user_seconds_total{name=~"nxf-.*"})
     - source: cgroups-exporter
       metrics:
       - name: cgroups_cpu_pressure_full_total
@@ -183,7 +183,7 @@ monitoring_targets:
       - name: scaph_host_power_microwatts
         query: scaph_host_power_microwatts
       - name: scaph_process_power_consumption_microwatts
-        query: scaph_process_power_consumption_microwatts
+        query: max by (instance, job, pid) (scaph_process_power_consumption_microwatts)
     - source: node-exporter
       metrics:
       - name: node_cooling_device_cur_state
