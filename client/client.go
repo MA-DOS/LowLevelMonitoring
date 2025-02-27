@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/MA-DOS/LowLevelMonitoring/watcher"
@@ -86,56 +87,71 @@ func NewFetchClient(c *Config) (api.Client, error) {
 }
 
 // Using Prometheus API to fetch the monitoring targets.
-func FetchMonitoringTargets(client api.Client, query string, containerStartUp, containerDie time.Time, containerName string) (model.Vector, error) {
-	v1api := v1.NewAPI(client)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+func FetchMonitoringTargets(client api.Client, query string, containerStartUp, containerDie time.Time, containerName string) (model.Matrix, error) {
+	var wg sync.WaitGroup
+	resultChannel := make(chan model.Matrix, 1) // Buffer to avoid blocking
+	errorChannel := make(chan error, 1)         // Buffer for errors
 
-	// Use the current containers name to query only the relevant time series per job.
+	v1api := v1.NewAPI(client)
+
+	// Construct query for Nextflow container
 	nextflowQuery := func(query, containerName string) string {
-		// cleanContainerName := watcher.EscapeContainerName(containerName)
-		logrus.Info("Cleaned Container Name: ", containerName)
-		return fmt.Sprintf(`%s{name=~"%s"}`, query, containerName)
+		return fmt.Sprintf(`%s{name="%s"}`, query, containerName)
 	}
 
 	logrus.Info("Querying Prometheus: ", nextflowQuery(query, containerName))
 
-	// Range Query is used based on events of container engine.
-	result, warnings, err := v1api.QueryRange(ctx, query, v1.Range{
-		Start: containerStartUp,
-		// TODO: Use time when container died here instead!!!
-		// End:   time.Now(),
-		End:  containerDie,
-		Step: 1 * time.Second,
-	})
-	if err != nil {
-		logrus.Errorf("Error querying Prometheus: %v", err)
-		return nil, err
-	}
-	if len(warnings) > 0 {
-		logrus.Warnf("Warnings: %v", warnings)
-	}
-	fmt.Println("Received Result from Prometheus: ", result)
-	// Processing the received Matrix of SampleStreams into model.Vectors.
-	// matrix := result.(model.Matrix)
-	// vector := model.Vector{}
-	// for _, sampleStream := range matrix {
-	// 	for _, sample := range sampleStream.Values {
-	// 		vector = append(vector, &model.Sample{
-	// 			Metric:    sampleStream.Metric,
-	// 			Value:     sample.Value,
-	// 			Timestamp: sample.Timestamp,
-	// 		})
-	// }
-	resultVector, ok := result.(model.Vector)
-	if !ok {
-		logrus.Error("Error casting to Vector")
-		return nil, err
-	}
-	return resultVector, nil
-}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 
-// fmt.Println("Casted Vector: ", vector)
+		// Perform range query
+		result, warnings, err := v1api.QueryRange(ctx, nextflowQuery(query, containerName), v1.Range{
+			Start: containerStartUp,
+			End:   containerDie.Add(5 * time.Second), // Add seconds to ensure I get the last sample.
+			Step:  500 * time.Millisecond,
+		})
+
+		if err != nil {
+			logrus.Errorf("Error querying Prometheus: %v", err)
+			errorChannel <- err
+			return
+		}
+		if len(warnings) > 0 {
+			logrus.Warnf("Warnings: %v", warnings)
+		}
+
+		resultMatrix, ok := result.(model.Matrix)
+		if !ok {
+			logrus.Error("Error casting result to Matrix")
+			errorChannel <- fmt.Errorf("failed to cast Prometheus response to Matrix")
+			return
+		}
+
+		logrus.Infof("[RESULT]: %v", resultMatrix)
+		resultChannel <- resultMatrix
+	}()
+
+	// Separate goroutine to close channels after all work is done
+	go func() {
+		wg.Wait()
+		close(resultChannel)
+		close(errorChannel)
+	}()
+
+	// Wait for either a result or an error
+	select {
+	case result := <-resultChannel:
+		return result, nil
+	case err := <-errorChannel:
+		return nil, err
+	case <-time.After(12 * time.Second): // Timeout safeguard
+		logrus.Error("Query timed out with no response")
+		return nil, fmt.Errorf("prometheus query timeout")
+	}
+}
 
 func ScheduleMonitoring(config Config, configPath string) {
 	monitorIsIdle := false
@@ -156,20 +172,19 @@ func ScheduleMonitoring(config Config, configPath string) {
 			parsedDieTime, _ := time.Parse(time.RFC3339, workflowContainer.DieTime)
 			_ = parsedStartTime
 			_ = parsedDieTime
-			// containerName := watcher.EscapeContainerName(workflowContainer.Name)
 			containerName := (workflowContainer.Name)
+			lifeTime := parsedDieTime.Sub(parsedStartTime)
 
-			logrus.Info("[RECEIVED DEAD CONTAINER] Container Name coming from channel: ", containerName)
-			logrus.Info("[CHANNEL COUNTER] Amount received through the channel: ", channelCounter)
+			logrus.Infof("[RECEIVED DEAD CONTAINER] Container Name coming from channel: %s who lived for %v.", containerName, lifeTime)
 
 			// Run the Monitor against Prometheus.
-			// resultMap, err := StartMonitoring(&config, configPath, parsedStartTime, parsedDieTime, containerName)
+			resultMap, err := StartMonitoring(&config, configPath, parsedStartTime, parsedDieTime, containerName)
 			// fmt.Printf("Result Map: %+v\n", resultMap)
-			// _ = resultMap
-			// if err != nil {
-			// 	logrus.Error("Error starting monitoring: ", err)
-			// panic(err)
-			// }
+			_ = resultMap
+			if err != nil {
+				logrus.Error("Error starting monitoring: ", err)
+				panic(err)
+			}
 		// Data Structure for results.
 		// for target, dataSources := range resultMap {
 		// 	for dataSource, queryNames := range dataSources {
@@ -193,14 +208,9 @@ func ScheduleMonitoring(config Config, configPath string) {
 		// }
 		case <-time.After(10 * time.Second):
 			if !monitorIsIdle {
-				logrus.Info("[WF MONITOR IDLE] Container Engine probably busy...!")
+				logrus.Info("[WF MONITOR IDLE]")
 				monitorIsIdle = true
 			}
-
-			// interval := config.ServerConfigurations.Prometheus.TargetServer.FetchInterval
-
-			// // Sleep for the configured interval before polling again.
-			// time.Sleep(time.Duration(interval) * time.Second)
 		}
 	}
 }

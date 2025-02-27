@@ -11,9 +11,9 @@ import (
 
 // TODO: Helper functions are needed to split this
 // Function to take in client configuration and queries to fetch monitoring targets in a thread.
-func FetchMonitoringSources(c *Config, cst, cdt time.Time, cn string, queries map[string]map[string][]tuple.T2[string, string]) (map[string]map[string]map[string]model.Vector, error) {
+func FetchMonitoringSources(c *Config, cst, cdt time.Time, cn string, queries map[string]map[string][]tuple.T2[string, string]) (map[string]map[string]map[string]model.Matrix, error) {
 	logrus.SetLevel(logrus.InfoLevel)
-	resultsWithCategories := make(map[string]map[string]map[string]model.Vector)
+	resultsWithCategories := make(map[string]map[string]map[string]model.Matrix)
 	// resultsWithoutCategories := model.Vector{}
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -34,7 +34,7 @@ func FetchMonitoringSources(c *Config, cst, cdt time.Time, cn string, queries ma
 	return resultsWithCategories, nil
 }
 
-func fetchQuery(c *Config, target, dataSource string, query tuple.T2[string, string], cst, cdt time.Time, cn string, mapTargetSourceName map[string]map[string]map[string]model.Vector, mu *sync.Mutex, wg *sync.WaitGroup) {
+func fetchQuery(c *Config, target, dataSource string, query tuple.T2[string, string], cst, cdt time.Time, cn string, mapTargetSourceName map[string]map[string]map[string]model.Matrix, mu *sync.Mutex, wg *sync.WaitGroup) {
 	defer wg.Done()
 	client, err := NewFetchClient(c)
 	if err != nil {
@@ -49,36 +49,37 @@ func fetchQuery(c *Config, target, dataSource string, query tuple.T2[string, str
 		logrus.Error("Error fetching monitoring targets", err)
 		return
 	}
+	_ = fetcher
 
 	mu.Lock()
 	defer mu.Unlock()
 
-	if _, exists := mapTargetSourceName[target]; !exists {
-		mapTargetSourceName[target] = make(map[string]map[string]model.Vector)
-	}
-	if _, exists := mapTargetSourceName[target][dataSource]; !exists {
-		mapTargetSourceName[target][dataSource] = make(map[string]model.Vector)
-	}
-	if _, exists := mapTargetSourceName[target][dataSource][query.V1]; !exists {
-		mapTargetSourceName[target][dataSource][query.V1] = model.Vector{}
-	}
+	// if _, exists := mapTargetSourceName[target]; !exists {
+	// 	mapTargetSourceName[target] = make(map[string]map[string]model.Matrix)
+	// }
+	// if _, exists := mapTargetSourceName[target][dataSource]; !exists {
+	// 	mapTargetSourceName[target][dataSource] = make(map[string]model.Matrix)
+	// }
+	// if _, exists := mapTargetSourceName[target][dataSource][query.V1]; !exists {
+	// 	mapTargetSourceName[target][dataSource][query.V1] = model.Matrix{}
+	// }
 
-	for _, sample := range fetcher {
-		found := false
-		for _, existingSample := range (mapTargetSourceName)[target][dataSource][query.V1] {
-			if existingSample.Timestamp == sample.Timestamp && existingSample.Metric.Equal(sample.Metric) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			(mapTargetSourceName)[target][dataSource][query.V1] = append(
-				(mapTargetSourceName)[target][dataSource][query.V1], sample)
-		}
-	}
+	// for _, sample := range fetcher {
+	// 	found := false
+	// 	for _, existingSample := range (mapTargetSourceName)[target][dataSource][query.V1] {
+	// 		if existingSample.Timestamp == sample.Timestamp && existingSample.Metric.Equal(sample.Metric) {
+	// 			found = true
+	// 			break
+	// 		}
+	// 	}
+	// 	if !found {
+	// 		(mapTargetSourceName)[target][dataSource][query.V1] = append(
+	// 			(mapTargetSourceName)[target][dataSource][query.V1], sample)
+	// 	}
+	// }
 }
 
-func StartMonitoring(c *Config, cfp string, cst, cdt time.Time, cn string) (map[string]map[string]map[string]model.Vector, error) {
+func StartMonitoring(c *Config, cfp string, cst, cdt time.Time, cn string) (map[string]map[string]map[string]model.Matrix, error) {
 	resultMap, err := FetchMonitoringSources(c, cst, cdt, cn, ConsolidateQueries((ReadMonitoringConfiguration(cfp))))
 	if err != nil {
 		logrus.Error("Error shooting queries: ", err)
