@@ -22,11 +22,11 @@ func main() {
 	// workflowActive := watcher.GetWorkflowRun("../SlurmSetup/nextflow/chipseq/.nextflow.log")
 
 	// Get the monitoring interval from the configuration file.
-	monitoringInterval := config.ServerConfigurations.Prometheus.TargetServer.FetchInterval
+	// monitoringInterval := config.ServerConfigurations.Prometheus.TargetServer.FetchInterval
 
 	// if workflowActive {
 	// Start the monitoring loop.
-	client.ScheduleMonitoring(*config, configFilePath, monitoringInterval)
-	// }
+	client.ScheduleMonitoring(*config, configFilePath)
 
+	// }
 }

@@ -7,7 +7,7 @@ server_configurations:
       interval: 1
 monitoring_targets:
   task_metadata:
-    enabled: true
+    enabled: false
     data_sources: 
     - source: cAdvisor
       metrics:
@@ -29,35 +29,37 @@ monitoring_targets:
     - source: cAdvisor 
       metrics:
       - name: container_cpu_user_seconds_total
-        query: max by (name, id, image,job)(container_cpu_user_seconds_total{name=~"nxf-.*"})
-    - source: cgroups-exporter
-      metrics:
-      - name: cgroups_cpu_pressure_full_total
-        query: cgroups_cpu_pressure_full_total
-      - name: cgroups_pids_count
-        query: cgroups_pids_count
-    - source: scaphandre
-      metrics:
-      - name: scaph_process_cpu_usage_percentage
-        query: max by (instance, job, pid) (scaph_process_cpu_usage_percentage)
-    - source: node-exporter
-      metrics:
-      - name: node_cpu_core_throttles_total
-        query: node_cpu_core_throttles_total
-      - name: node_cpu_scaling_frequency_hertz
-        query: node_cpu_scaling_frequency_hertz
-      - name: node_cpu_seconds_total
-        query: node_cpu_seconds_total
-      - name: node_pressure_cpu_waiting_seconds_total
-        query: node_pressure_cpu_waiting_seconds_total
-    - source: process-exporter
-      metrics:
-      - name: namedprocess_namegroup_cpu_seconds_total
-        query: namedprocess_namegroup_cpu_seconds_total
-      - name: namedprocess_namegroup_thread_cpu_seconds_total
-        query: namedprocess_namegroup_thread_cpu_seconds_total
+        # query: max by (name, id, image,job)(container_cpu_user_seconds_total{name=~"nxf-.*"})
+        # query: container_cpu_user_seconds_total{name=~"nxf-.*"}
+        query: container_cpu_user_seconds_total
+    # - source: cgroups-exporter
+    #   metrics:
+    #   - name: cgroups_cpu_pressure_full_total
+    #     query: cgroups_cpu_pressure_full_total
+    #   - name: cgroups_pids_count
+    #     query: cgroups_pids_count
+    # - source: scaphandre
+    #   metrics:
+    #   - name: scaph_process_cpu_usage_percentage
+    #     query: max by (instance, job, pid) (scaph_process_cpu_usage_percentage)
+    # - source: node-exporter
+    #   metrics:
+    #   - name: node_cpu_core_throttles_total
+    #     query: node_cpu_core_throttles_total
+    #   - name: node_cpu_scaling_frequency_hertz
+    #     query: node_cpu_scaling_frequency_hertz
+    #   - name: node_cpu_seconds_total
+    #     query: node_cpu_seconds_total
+    #   - name: node_pressure_cpu_waiting_seconds_total
+    #     query: node_pressure_cpu_waiting_seconds_total
+    # - source: process-exporter
+    #   metrics:
+    #   - name: namedprocess_namegroup_cpu_seconds_total
+    #     query: namedprocess_namegroup_cpu_seconds_total
+    #   - name: namedprocess_namegroup_thread_cpu_seconds_total
+    #     query: namedprocess_namegroup_thread_cpu_seconds_total
   memory:
-    enabled: true
+    enabled: false
     data_sources:
     - source: cAdvisor
       metrics:
@@ -90,7 +92,7 @@ monitoring_targets:
       - name: namedprocess_memory_bytes
         query: namedprocess_memory_bytes
   disk:
-    enabled: true
+    enabled: false
     data_sources:
     - source: process-exporter
       metrics:
@@ -149,7 +151,7 @@ monitoring_targets:
       - name: node_pressure_io_waiting_seconds_total
         query: node_pressure_io_waiting_seconds_total
   network:
-    enabled: true
+    enabled: false
     data_sources:
     - source: cAdvisor
       metrics:
@@ -170,7 +172,7 @@ monitoring_targets:
       - name: node_network_receive_bytes_total
         query: node_network_receive_bytes_total
   energy:
-    enabled: true
+    enabled: false
     data_sources:
     - source: slurm-job-expoter
       metrics:

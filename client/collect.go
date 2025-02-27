@@ -2,6 +2,7 @@ package client
 
 import (
 	"sync"
+	"time"
 
 	"github.com/barweiss/go-tuple"
 	"github.com/prometheus/common/model"
@@ -10,7 +11,7 @@ import (
 
 // TODO: Helper functions are needed to split this
 // Function to take in client configuration and queries to fetch monitoring targets in a thread.
-func FetchMonitoringSources(c *Config, queries map[string]map[string][]tuple.T2[string, string]) (map[string]map[string]map[string]model.Vector, error) {
+func FetchMonitoringSources(c *Config, cst, cdt time.Time, cn string, queries map[string]map[string][]tuple.T2[string, string]) (map[string]map[string]map[string]model.Vector, error) {
 	logrus.SetLevel(logrus.InfoLevel)
 	resultsWithCategories := make(map[string]map[string]map[string]model.Vector)
 	// resultsWithoutCategories := model.Vector{}
@@ -24,7 +25,7 @@ func FetchMonitoringSources(c *Config, queries map[string]map[string][]tuple.T2[
 			for _, query := range querySlices {
 				wg.Add(1)
 				threadCounter++
-				go fetchQuery(c, target, dataSource, query, resultsWithCategories, &mu, &wg)
+				go fetchQuery(c, target, dataSource, query, cst, cdt, cn, resultsWithCategories, &mu, &wg)
 			}
 		}
 	}
@@ -33,7 +34,7 @@ func FetchMonitoringSources(c *Config, queries map[string]map[string][]tuple.T2[
 	return resultsWithCategories, nil
 }
 
-func fetchQuery(c *Config, target, dataSource string, query tuple.T2[string, string], mapTargetSourceName map[string]map[string]map[string]model.Vector, mu *sync.Mutex, wg *sync.WaitGroup) {
+func fetchQuery(c *Config, target, dataSource string, query tuple.T2[string, string], cst, cdt time.Time, cn string, mapTargetSourceName map[string]map[string]map[string]model.Vector, mu *sync.Mutex, wg *sync.WaitGroup) {
 	defer wg.Done()
 	client, err := NewFetchClient(c)
 	if err != nil {
@@ -41,7 +42,9 @@ func fetchQuery(c *Config, target, dataSource string, query tuple.T2[string, str
 		return
 	}
 
-	fetcher, err := FetchMonitoringTargets(client, query.V2)
+	// Insert the range for the query by event in the container engine.
+	// queryString := strings.Replace(query.V2, "[DURATION]", duration, -1)
+	fetcher, err := FetchMonitoringTargets(client, query.V2, cst, cdt, cn)
 	if err != nil {
 		logrus.Error("Error fetching monitoring targets", err)
 		return
@@ -75,8 +78,8 @@ func fetchQuery(c *Config, target, dataSource string, query tuple.T2[string, str
 	}
 }
 
-func StartMonitoring(c *Config, cfp string) (map[string]map[string]map[string]model.Vector, error) {
-	resultMap, err := FetchMonitoringSources(c, ConsolidateQueries((ReadMonitoringConfiguration(cfp))))
+func StartMonitoring(c *Config, cfp string, cst, cdt time.Time, cn string) (map[string]map[string]map[string]model.Vector, error) {
+	resultMap, err := FetchMonitoringSources(c, cst, cdt, cn, ConsolidateQueries((ReadMonitoringConfiguration(cfp))))
 	if err != nil {
 		logrus.Error("Error shooting queries: ", err)
 		return resultMap, err

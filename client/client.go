@@ -2,10 +2,10 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 
-	"github.com/MA-DOS/LowLevelMonitoring/aggregate"
 	"github.com/MA-DOS/LowLevelMonitoring/watcher"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -86,12 +86,28 @@ func NewFetchClient(c *Config) (api.Client, error) {
 }
 
 // Using Prometheus API to fetch the monitoring targets.
-func FetchMonitoringTargets(client api.Client, q string) (model.Vector, error) {
+func FetchMonitoringTargets(client api.Client, query string, containerStartUp, containerDie time.Time, containerName string) (model.Vector, error) {
 	v1api := v1.NewAPI(client)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	result, warnings, err := v1api.Query(ctx, q, time.Now())
+	// Use the current containers name to query only the relevant time series per job.
+	nextflowQuery := func(query, containerName string) string {
+		// cleanContainerName := watcher.EscapeContainerName(containerName)
+		logrus.Info("Cleaned Container Name: ", containerName)
+		return fmt.Sprintf(`%s{name=~"%s"}`, query, containerName)
+	}
+
+	logrus.Info("Querying Prometheus: ", nextflowQuery(query, containerName))
+
+	// Range Query is used based on events of container engine.
+	result, warnings, err := v1api.QueryRange(ctx, query, v1.Range{
+		Start: containerStartUp,
+		// TODO: Use time when container died here instead!!!
+		// End:   time.Now(),
+		End:  containerDie,
+		Step: 1 * time.Second,
+	})
 	if err != nil {
 		logrus.Errorf("Error querying Prometheus: %v", err)
 		return nil, err
@@ -99,55 +115,92 @@ func FetchMonitoringTargets(client api.Client, q string) (model.Vector, error) {
 	if len(warnings) > 0 {
 		logrus.Warnf("Warnings: %v", warnings)
 	}
-	castToVector, ok := result.(model.Vector)
+	fmt.Println("Received Result from Prometheus: ", result)
+	// Processing the received Matrix of SampleStreams into model.Vectors.
+	// matrix := result.(model.Matrix)
+	// vector := model.Vector{}
+	// for _, sampleStream := range matrix {
+	// 	for _, sample := range sampleStream.Values {
+	// 		vector = append(vector, &model.Sample{
+	// 			Metric:    sampleStream.Metric,
+	// 			Value:     sample.Value,
+	// 			Timestamp: sample.Timestamp,
+	// 		})
+	// }
+	resultVector, ok := result.(model.Vector)
 	if !ok {
 		logrus.Error("Error casting to Vector")
 		return nil, err
 	}
-	return castToVector, nil
+	return resultVector, nil
 }
 
-func ScheduleMonitoring(config Config, configPath string, interval int) {
+// fmt.Println("Casted Vector: ", vector)
+
+func ScheduleMonitoring(config Config, configPath string) {
+	monitorIsIdle := false
+	channelCounter := 0
+
+	// Init the event-based polling for container events.
+	containerEventChannel := make(chan watcher.NextflowContainer)
+	workflowContainer := watcher.NextflowContainer{}
+	go workflowContainer.GetContainerEvents(containerEventChannel)
+
+	// Run the main monitoring loop by receiving container events.
 	for {
-		// Run the Monitor against Prometheus.
-		resultMap, err := StartMonitoring(&config, configPath)
-		if err != nil {
-			logrus.Error("Error starting monitoring: ", err)
+		select {
+		case workflowContainer := <-containerEventChannel:
+			channelCounter++
+			monitorIsIdle = false
+			parsedStartTime, _ := time.Parse(time.RFC3339, workflowContainer.StartTime)
+			parsedDieTime, _ := time.Parse(time.RFC3339, workflowContainer.DieTime)
+			_ = parsedStartTime
+			_ = parsedDieTime
+			// containerName := watcher.EscapeContainerName(workflowContainer.Name)
+			containerName := (workflowContainer.Name)
+
+			logrus.Info("[RECEIVED DEAD CONTAINER] Container Name coming from channel: ", containerName)
+			logrus.Info("[CHANNEL COUNTER] Amount received through the channel: ", channelCounter)
+
+			// Run the Monitor against Prometheus.
+			// resultMap, err := StartMonitoring(&config, configPath, parsedStartTime, parsedDieTime, containerName)
+			// fmt.Printf("Result Map: %+v\n", resultMap)
+			// _ = resultMap
+			// if err != nil {
+			// 	logrus.Error("Error starting monitoring: ", err)
 			// panic(err)
-		}
+			// }
 		// Data Structure for results.
-		for target, dataSources := range resultMap {
-			for dataSource, queryNames := range dataSources {
-				for queryName, samples := range queryNames {
-					dataWrapper := aggregate.NewDataVectorWrapper(map[string]map[string]map[string]model.Vector{
-						target: {
-							dataSource: {
-								queryName: samples,
-							},
-						},
-					})
-					// Use the result variable
-					// logrus.Infof("Processing result: %v", result)
+		// for target, dataSources := range resultMap {
+		// 	for dataSource, queryNames := range dataSources {
+		// 		for queryName, samples := range queryNames {
+		// 			dataWrapper := aggregate.NewDataVectorWrapper(map[string]map[string]map[string]model.Vector{
+		// 				target: {
+		// 					dataSource: {
+		// 						queryName: samples,
+		// 					},
+		// 				},
+		// 			})
+		// 			// Use the result variable
+		// 			// logrus.Infof("Processing result: %v", result)
 
-					err = dataWrapper.CreateDataOutput()
-					if err != nil {
-						logrus.Error("Error creating output: ", err)
-					}
-				}
+		// 			err = dataWrapper.CreateDataOutput()
+		// 			if err != nil {
+		// 				logrus.Error("Error creating output: ", err)
+		// 			}
+		// 		}
+		// 	}
+		// }
+		case <-time.After(10 * time.Second):
+			if !monitorIsIdle {
+				logrus.Info("[WF MONITOR IDLE] Container Engine probably busy...!")
+				monitorIsIdle = true
 			}
+
+			// interval := config.ServerConfigurations.Prometheus.TargetServer.FetchInterval
+
+			// // Sleep for the configured interval before polling again.
+			// time.Sleep(time.Duration(interval) * time.Second)
 		}
-		interval := config.ServerConfigurations.Prometheus.TargetServer.FetchInterval
-
-		// Run the monitor against Docker Daemon.
-		nextflowContainer := watcher.NextflowContainer{}
-		containers := nextflowContainer.ListContainers()
-		nextflowContainer.InspectContainer(containers)
-
-		// Run the observer against the Nextflow log.
-		// taskFromLog := watcher.WorkflowTask{}
-		// taskFromLog.WatchCompletedTasks("/home/nfomin3/dev/SlurmSetup/nextflow/chipseq/.nextflow.log")
-
-		// Sleep for the configured interval before polling again.
-		time.Sleep(time.Duration(interval) * time.Second)
 	}
 }

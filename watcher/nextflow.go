@@ -2,6 +2,7 @@ package watcher
 
 import (
 	"bufio"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MA-DOS/LowLevelMonitoring/aggregate"
 	"github.com/sirupsen/logrus"
 )
 
@@ -110,6 +112,36 @@ func (wft *WorkflowTask) WatchCompletedTasks(f string) error {
 
 			// Instantiate a new WorkflowTask Object for each completed task
 			wft.NameToID[taskName], _ = strconv.Atoi(jobID)
+			path := "/home/nfomin3/dev/LowLevelMonitoring/results/watcher"
+			fileName := "nextflow_logs.csv"
+			// fullPath := fmt.Sprintf("%s/%s", path, fileName)
+			folder, _ := aggregate.CreateOutputFolder(path)
+			file := aggregate.CreateFile(folder, fileName)
+			// file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+
+			defer file.Close()
+
+			writer := csv.NewWriter(file)
+			defer writer.Flush()
+
+			// Write CSV header
+			fileInfo, err := file.Stat()
+			if err != nil {
+				return fmt.Errorf("error getting file info: %w", err)
+			}
+			if fileInfo.Size() == 0 {
+				if err := writer.Write([]string{"Name"}); err != nil {
+					logrus.Error("Error writing to CSV")
+				}
+			}
+
+			for taskName, jobID := range wft.NameToID {
+				writer.Write([]string{
+					taskName,
+					fmt.Sprintf("%d", jobID),
+				})
+			}
+
 			// wft.Started = started
 			// wft.Exited = exited
 			// wft.Workdir = workdir

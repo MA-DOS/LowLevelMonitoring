@@ -4,7 +4,6 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
-	"regexp"
 	"sort"
 
 	"github.com/prometheus/common/model"
@@ -86,28 +85,35 @@ func (v *DataVectorWrapper) WriteToCSV(folder string, outputFile *os.File, times
 	// Write data to the file.
 	values := ReadLabelValues(metricLabels, timestamp, value)
 
-	pattern := `^nxf-[A-Za-z0-9]+$`
-	re := regexp.MustCompile(pattern)
-
-	for _, taskName := range values {
+	// pattern := `^nxf-[A-Za-z0-9]+$`
+	// re := regexp.MustCompile(pattern)
+	// for _, taskName := range metricLabels {
+	for range values {
 		// fmt.Printf("Value: %f", value)
-		if re.MatchString(taskName) {
-			// fmt.Println("Found nextflow container")
-			FilterNextflowJobs(folder, taskName, values)
-			return nil
+		// if re.MatchString(taskName) {
+		// 	// fmt.Println("Found nextflow container")
+		// 	FilterNextflowJobs(folder, taskName, values)
+		// Also write all values into main file.
+		if err := w.Write(values); err != nil {
+			logrus.Error("Error writing to CSV")
+			return err
 		}
-	}
-	if err := w.Write(values); err != nil {
-		logrus.Error("Error writing to CSV")
-		return err
 	}
 	return nil
 }
+
+// if err := w.Write(values); err != nil {
+// 	logrus.Error("Error writing to CSV")
+// 	return err
+// }
+// 	return nil
+// }
 
 func FilterNextflowJobs(queryFolder string, taskName string, values []string) {
 	containerName := taskName
 
 	taskFolder, err := CreateOutputFolder(fmt.Sprintf("%s/%s", queryFolder, containerName))
+	logrus.Infof("Created output folder for finished Task: %s", containerName)
 	if err != nil {
 		logrus.Error("Error creating task folder: ", err)
 	}
@@ -125,7 +131,6 @@ func FilterNextflowJobs(queryFolder string, taskName string, values []string) {
 
 	}
 	// fmt.Println("Values: ", values)
-
 }
 
 // Helper to create folder.
