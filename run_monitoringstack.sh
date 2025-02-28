@@ -21,6 +21,7 @@ CGROUP_EXPORTER=/home/$USER/dev/cgroups-exporter-mosquito
 SLURM_EXPORTER=/home/$USER/dev/SlurmExporter/bin
 PROC_EXPORTER=/usr/local/bin
 CADVISOR_EXPORTER=/home/$USER/dev/cadvisor/_output
+DOCKER_ACTIVITY=/home/$USER/dev/docker-activity/example
 
 # Cleanup function
 cleanup() {
@@ -32,7 +33,8 @@ cleanup() {
      docker rm -f node-exporter > /dev/null 2>&1 || true
      pkill -f prometheus || true
      pkill -f slurm_exporter || true
-    exit 1
+     cd $DOCKER_ACTIVITY && docker-compose down
+     exit 1
 }
 
 # Kill any running instances of the programs
@@ -44,6 +46,8 @@ cleanup() {
  docker rm -f node-exporter > /dev/null 2>&1 || true
  pkill -f prometheus || true
  pkill -f slurm_exporter || true
+ cd $DOCKER_ACTIVITY && docker-compose down
+ exit 1
 
 # Run the services
 echo "Monitoring Stack is starting..."
@@ -56,6 +60,13 @@ sleep 2
 echo "Running process-exporter"
 sleep 2
 ./process-exporter --procfs /proc --config.path $PROC_CONFIG > /dev/null 2>&1 & 
+
+# Run docker-activity via docker compose
+echo "Navigating to $DOCKER_ACTIVITY"
+cd $DOCKER_ACTIVITY
+echo "Running docker-activity"
+sleep 2
+docker-compose up -d
 
 # Run cgroups exporter for slurm
 echo "Navigating to $CGROUP_EXPORTER_SLURM"
