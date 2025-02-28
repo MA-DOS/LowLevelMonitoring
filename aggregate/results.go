@@ -12,11 +12,11 @@ import (
 
 type DataVectorWrapper struct {
 	Result    model.Vector                                  // Needed only for slurm_job_id metadata
-	ResultMap map[string]map[string]map[string]model.Vector // Holds the map according to the config structure
+	ResultMap map[string]map[string]map[string]model.Matrix // Holds the map according to the config structure
 	// mu        sync.Mutex
 }
 
-func NewDataVectorWrapper(m map[string]map[string]map[string]model.Vector) *DataVectorWrapper {
+func NewDataVectorWrapper(m map[string]map[string]map[string]model.Matrix) *DataVectorWrapper {
 	return &DataVectorWrapper{
 		ResultMap: m,
 	}
@@ -54,12 +54,14 @@ func CreateMonitoringOutput(v *DataVectorWrapper) error {
 				queryFile := CreateFile(queryFolder, queryName+".csv")
 
 				for _, sample := range samples {
-					timestamp := sample.Timestamp.Time().Format("15:04:05.000")
+					for _, pair := range sample.Values {
+						timestamp := pair.Timestamp.Time().Format("15:04:05.000")
 
-					// logrus.Infof("Writing Sample - Timestamp: %s, ID: %s, Value: %f",
-					// timestamp, sample.Metric["id"], float64(sample.Value))
+						// logrus.Infof("Writing Sample - Timestamp: %s, ID: %s, Value: %f",
+						// timestamp, sample.Metric["id"], float64(pair.Value))
 
-					v.WriteToCSV(queryFolder, queryFile, timestamp, model.LabelSet(sample.Metric), float64(sample.Value))
+						v.WriteToCSV(queryFolder, queryFile, timestamp, model.LabelSet(sample.Metric), float64(pair.Value))
+					}
 				}
 			}
 		}

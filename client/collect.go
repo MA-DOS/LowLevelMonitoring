@@ -49,20 +49,19 @@ func fetchQuery(c *Config, target, dataSource string, query tuple.T2[string, str
 		logrus.Error("Error fetching monitoring targets", err)
 		return
 	}
-	_ = fetcher
 
 	mu.Lock()
 	defer mu.Unlock()
 
-	// if _, exists := mapTargetSourceName[target]; !exists {
-	// 	mapTargetSourceName[target] = make(map[string]map[string]model.Matrix)
-	// }
-	// if _, exists := mapTargetSourceName[target][dataSource]; !exists {
-	// 	mapTargetSourceName[target][dataSource] = make(map[string]model.Matrix)
-	// }
-	// if _, exists := mapTargetSourceName[target][dataSource][query.V1]; !exists {
-	// 	mapTargetSourceName[target][dataSource][query.V1] = model.Matrix{}
-	// }
+	if _, exists := mapTargetSourceName[target]; !exists {
+		mapTargetSourceName[target] = make(map[string]map[string]model.Matrix)
+	}
+	if _, exists := mapTargetSourceName[target][dataSource]; !exists {
+		mapTargetSourceName[target][dataSource] = make(map[string]model.Matrix)
+	}
+	if _, exists := mapTargetSourceName[target][dataSource][query.V1]; !exists {
+		mapTargetSourceName[target][dataSource][query.V1] = model.Matrix{}
+	}
 
 	// for _, sample := range fetcher {
 	// 	found := false
@@ -77,7 +76,15 @@ func fetchQuery(c *Config, target, dataSource string, query tuple.T2[string, str
 	// 			(mapTargetSourceName)[target][dataSource][query.V1], sample)
 	// 	}
 	// }
+	mapTargetSourceName[target][dataSource][query.V1] = fetcher
 }
+
+// 		for range (mapTargetSourceName)[target][dataSource][query.V1] {
+// 			(mapTargetSourceName)[target][dataSource][query.V1] = append(
+// 				(mapTargetSourceName)[target][dataSource][query.V1], sample)
+// 		}
+// 	}
+// }
 
 func StartMonitoring(c *Config, cfp string, cst, cdt time.Time, cn string) (map[string]map[string]map[string]model.Matrix, error) {
 	resultMap, err := FetchMonitoringSources(c, cst, cdt, cn, ConsolidateQueries((ReadMonitoringConfiguration(cfp))))

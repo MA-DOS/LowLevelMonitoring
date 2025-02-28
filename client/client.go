@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MA-DOS/LowLevelMonitoring/aggregate"
 	"github.com/MA-DOS/LowLevelMonitoring/watcher"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -130,7 +131,7 @@ func FetchMonitoringTargets(client api.Client, query string, containerStartUp, c
 			return
 		}
 
-		logrus.Infof("[RESULT]: %v", resultMatrix)
+		// logrus.Infof("[RESULT]: %v", resultMatrix)
 		resultChannel <- resultMatrix
 	}()
 
@@ -179,33 +180,32 @@ func ScheduleMonitoring(config Config, configPath string) {
 
 			// Run the Monitor against Prometheus.
 			resultMap, err := StartMonitoring(&config, configPath, parsedStartTime, parsedDieTime, containerName)
-			// fmt.Printf("Result Map: %+v\n", resultMap)
-			_ = resultMap
+			fmt.Printf("[RESULT MAP]: %+v\n", resultMap)
 			if err != nil {
 				logrus.Error("Error starting monitoring: ", err)
 				panic(err)
 			}
-		// Data Structure for results.
-		// for target, dataSources := range resultMap {
-		// 	for dataSource, queryNames := range dataSources {
-		// 		for queryName, samples := range queryNames {
-		// 			dataWrapper := aggregate.NewDataVectorWrapper(map[string]map[string]map[string]model.Vector{
-		// 				target: {
-		// 					dataSource: {
-		// 						queryName: samples,
-		// 					},
-		// 				},
-		// 			})
-		// 			// Use the result variable
-		// 			// logrus.Infof("Processing result: %v", result)
+			// Data Structure for results.
+			for target, dataSources := range resultMap {
+				for dataSource, queryNames := range dataSources {
+					for queryName, samples := range queryNames {
+						dataWrapper := aggregate.NewDataVectorWrapper(map[string]map[string]map[string]model.Matrix{
+							target: {
+								dataSource: {
+									queryName: samples,
+								},
+							},
+						})
+						// Use the result variable
+						// logrus.Infof("Processing result: %v", result)
 
-		// 			err = dataWrapper.CreateDataOutput()
-		// 			if err != nil {
-		// 				logrus.Error("Error creating output: ", err)
-		// 			}
-		// 		}
-		// 	}
-		// }
+						err = dataWrapper.CreateDataOutput()
+						if err != nil {
+							logrus.Error("Error creating output: ", err)
+						}
+					}
+				}
+			}
 		case <-time.After(10 * time.Second):
 			if !monitorIsIdle {
 				logrus.Info("[WF MONITOR IDLE]")
