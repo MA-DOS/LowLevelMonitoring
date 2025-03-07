@@ -11,14 +11,16 @@ import (
 )
 
 type DataVectorWrapper struct {
-	Result    model.Vector                                  // Needed only for slurm_job_id metadata
-	ResultMap map[string]map[string]map[string]model.Matrix // Holds the map according to the config structure
+	Result        model.Vector                                  // Needed only for slurm_job_id metadata
+	ResultMap     map[string]map[string]map[string]model.Matrix // Holds the map according to the config structure
+	QueryMetaInfo map[string][]string
 	// mu        sync.Mutex
 }
 
-func NewDataVectorWrapper(m map[string]map[string]map[string]model.Matrix) *DataVectorWrapper {
+func NewDataVectorWrapper(m map[string]map[string]map[string]model.Matrix, qmi map[string][]string) *DataVectorWrapper {
 	return &DataVectorWrapper{
-		ResultMap: m,
+		ResultMap:     m,
+		QueryMetaInfo: qmi,
 	}
 }
 
@@ -60,7 +62,8 @@ func CreateMonitoringOutput(v *DataVectorWrapper) error {
 						// logrus.Infof("Writing Sample - Timestamp: %s, ID: %s, Value: %f",
 						// timestamp, sample.Metric["id"], float64(pair.Value))
 
-						v.WriteToCSV(queryFolder, queryFile, timestamp, model.LabelSet(sample.Metric), float64(pair.Value))
+						v.WriteToCSV(dataSource, v.QueryMetaInfo, queryFolder, queryFile, timestamp, model.LabelSet(sample.Metric), float64(pair.Value))
+						// logrus.Info("[QUERY Labels]: ", v.QueryMetaInfo)
 					}
 				}
 			}
@@ -69,7 +72,7 @@ func CreateMonitoringOutput(v *DataVectorWrapper) error {
 	return nil
 }
 
-func (v *DataVectorWrapper) WriteToCSV(folder string, outputFile *os.File, timestamp string, metricLabels model.LabelSet, value float64) error {
+func (v *DataVectorWrapper) WriteToCSV(dataSource string, QueryMetaInfo map[string][]string, folder string, outputFile *os.File, timestamp string, metricLabels model.LabelSet, value float64) error {
 	w := csv.NewWriter(outputFile)
 	w.Comma = ','
 	defer w.Flush()
@@ -85,21 +88,19 @@ func (v *DataVectorWrapper) WriteToCSV(folder string, outputFile *os.File, times
 	}
 
 	// Write data to the file.
-	values := ReadLabelValues(metricLabels, timestamp, value)
+	values := ReadLabelValues(dataSource, QueryMetaInfo, metricLabels, timestamp, value)
 
 	// pattern := `^nxf-[A-Za-z0-9]+$`
 	// re := regexp.MustCompile(pattern)
 	// for _, taskName := range metricLabels {
-	for range values {
-		// fmt.Printf("Value: %f", value)
-		// if re.MatchString(taskName) {
-		// 	// fmt.Println("Found nextflow container")
-		// 	FilterNextflowJobs(folder, taskName, values)
-		// Also write all values into main file.
-		if err := w.Write(values); err != nil {
-			logrus.Error("Error writing to CSV")
-			return err
-		}
+	// fmt.Printf("Value: %f", value)
+	// if re.MatchString(taskName) {
+	// 	// fmt.Println("Found nextflow container")
+	// 	FilterNextflowJobs(folder, taskName, values)
+	// Also write all values into main file.
+	if err := w.Write(values); err != nil {
+		logrus.Error("Error writing to CSV")
+		return err
 	}
 	return nil
 }
@@ -115,7 +116,7 @@ func FilterNextflowJobs(queryFolder string, taskName string, values []string) {
 	containerName := taskName
 
 	taskFolder, err := CreateOutputFolder(fmt.Sprintf("%s/%s", queryFolder, containerName))
-	logrus.Infof("Created output folder for finished Task: %s", containerName)
+	// logrus.Infof("Created output folder for finished Task: %s", containerName)
 	if err != nil {
 		logrus.Error("Error creating task folder: ", err)
 	}
@@ -175,18 +176,24 @@ func ReadHeaderFields(labelNames model.LabelSet) []string {
 	return header
 }
 
-func ReadLabelValues(labelValues model.LabelSet, timestamp string, value float64) []string {
+func ReadLabelValues(dataSource string, QueryMetaInfo map[string][]string, labelValues model.LabelSet, timestamp string, value float64) []string {
 	record := []string{
 		// strconv.FormatInt(timestamp, 10),
 		timestamp,
 		fmt.Sprintf("%f", value),
 	}
 
-	keys := make([]string, 0, len(labelValues))
-	for key := range labelValues {
-		keys = append(keys, string(key))
+	labels, ok := QueryMetaInfo[dataSource]
+	if !ok {
+		logrus.Warn("Labels not found for source: ", dataSource)
+		return nil
 	}
+
+	keys := make([]string, 0, len(labels))
+	keys = append(keys, labels...)
+	// logrus.Infof("QueryMetaInfo: %v", QueryMetaInfo)
 	sort.Strings(keys)
+
 	for _, key := range keys {
 		record = append(record, string(labelValues[model.LabelName(key)]))
 	}

@@ -51,8 +51,10 @@ type MonitoringTarget struct {
 }
 
 type DataSource struct {
-	Source  string   `yaml:"source"`
-	Metrics []string `yaml:"metrics"`
+	Source    string   `yaml:"source"`
+	Labels    []string `yaml:"labels"`
+	Identfier string   `yaml:"identifier"`
+	Metrics   []string `yaml:"metrics"`
 }
 
 type Metric struct {
@@ -88,19 +90,43 @@ func NewFetchClient(c *Config) (api.Client, error) {
 }
 
 // Using Prometheus API to fetch the monitoring targets.
-func FetchMonitoringTargets(client api.Client, query string, containerStartUp, containerDie time.Time, containerName string) (model.Matrix, error) {
+func FetchMonitoringTargets(client api.Client, queryIdentifier, query string, containerStartUp, containerDie time.Time, containerName, cwdir, cid string, cpid int) (model.Matrix, error) {
 	var wg sync.WaitGroup
 	resultChannel := make(chan model.Matrix, 1) // Buffer to avoid blocking
 	errorChannel := make(chan error, 1)         // Buffer for errors
 
 	v1api := v1.NewAPI(client)
 
+	// TODO: Use the queryIdentifier to fetch the query from the config dynamically.
 	// Construct query for Nextflow container
-	nextflowQuery := func(query, containerName string) string {
-		return fmt.Sprintf(`%s{name="%s"}`, query, containerName)
+	logrus.Info("Identifier is : ", queryIdentifier)
+	logrus.Info("Query is : ", query)
+	logrus.Info("Container Name is : ", containerName)
+	logrus.Info("Container ID is : ", cid)
+	logrus.Info("Container WorkDir is : ", cwdir)
+	logrus.Info("Container PID is : ", cpid)
+
+	nextflowQuery := func(query, queryIdentifier string) string {
+		// TODO: Need to be distinguished depending on the identifier.
+		switch queryIdentifier {
+		// When name is identifier the container name can specify the query.
+		case "name":
+			return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, containerName)
+		case "path":
+			return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, cid)
+		case "work_dir":
+			return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, cwdir)
+		case "groupname":
+			return fmt.Sprintf(`%s{%s="%v"}`, query, queryIdentifier, cpid)
+		case "container_names":
+			return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, containerName)
+		case "container_name":
+			return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, containerName)
+		}
+		return query
 	}
 
-	logrus.Info("Querying Prometheus: ", nextflowQuery(query, containerName))
+	logrus.Info("Querying Prometheus: ", nextflowQuery(query, queryIdentifier))
 
 	wg.Add(1)
 	go func() {
@@ -109,7 +135,7 @@ func FetchMonitoringTargets(client api.Client, query string, containerStartUp, c
 		defer cancel()
 
 		// Perform range query
-		result, warnings, err := v1api.QueryRange(ctx, nextflowQuery(query, containerName), v1.Range{
+		result, warnings, err := v1api.QueryRange(ctx, nextflowQuery(query, queryIdentifier), v1.Range{
 			Start: containerStartUp,
 			End:   containerDie.Add(5 * time.Second), // Add seconds to ensure I get the last sample.
 			Step:  500 * time.Millisecond,
@@ -171,16 +197,17 @@ func ScheduleMonitoring(config Config, configPath string) {
 			monitorIsIdle = false
 			parsedStartTime, _ := time.Parse(time.RFC3339, workflowContainer.StartTime)
 			parsedDieTime, _ := time.Parse(time.RFC3339, workflowContainer.DieTime)
-			_ = parsedStartTime
-			_ = parsedDieTime
 			containerName := (workflowContainer.Name)
 			lifeTime := parsedDieTime.Sub(parsedStartTime)
+			containerWorkDir := workflowContainer.WorkDir
+			containerID := workflowContainer.ContainerID
+			containerPID := workflowContainer.PID
 
 			logrus.Infof("[RECEIVED DEAD CONTAINER] Container Name coming from channel: %s who lived for %v.", containerName, lifeTime)
 
 			// Run the Monitor against Prometheus.
-			resultMap, err := StartMonitoring(&config, configPath, parsedStartTime, parsedDieTime, containerName)
-			fmt.Printf("[RESULT MAP]: %+v\n", resultMap)
+			resultMap, queryMetaInfo, err := StartMonitoring(&config, configPath, parsedStartTime, parsedDieTime, containerName, containerWorkDir, containerID, containerPID)
+			// fmt.Printf("[RESULT MAP]: %+v\n", resultMap)
 			if err != nil {
 				logrus.Error("Error starting monitoring: ", err)
 				panic(err)
@@ -195,7 +222,8 @@ func ScheduleMonitoring(config Config, configPath string) {
 									queryName: samples,
 								},
 							},
-						})
+						}, queryMetaInfo)
+
 						// Use the result variable
 						// logrus.Infof("Processing result: %v", result)
 

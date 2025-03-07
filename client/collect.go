@@ -5,36 +5,40 @@ import (
 	"time"
 
 	"github.com/barweiss/go-tuple"
+
 	"github.com/prometheus/common/model"
 	"github.com/sirupsen/logrus"
 )
 
-// TODO: Helper functions are needed to split this
 // Function to take in client configuration and queries to fetch monitoring targets in a thread.
-func FetchMonitoringSources(c *Config, cst, cdt time.Time, cn string, queries map[string]map[string][]tuple.T2[string, string]) (map[string]map[string]map[string]model.Matrix, error) {
+func FetchMonitoringSources(c *Config, cst, cdt time.Time, cn, cwdir, cid string, cpid int, queriesMap map[string]map[string][]tuple.T4[string, string, []string, string]) (map[string]map[string]map[string]model.Matrix, map[string][]string, error) {
+
 	logrus.SetLevel(logrus.InfoLevel)
 	resultsWithCategories := make(map[string]map[string]map[string]model.Matrix)
-	// resultsWithoutCategories := model.Vector{}
+	queryMetaInfo := make(map[string][]string)
+
 	var mu sync.Mutex
 	var wg sync.WaitGroup
-	// Debugging just for fun
-	threadCounter := 0
 
-	for target, dataSources := range queries {
-		for dataSource, querySlices := range dataSources {
-			for _, query := range querySlices {
+	for target, dataSources := range queriesMap {
+		for dataSource, queryList := range dataSources {
+			if len(queryList) > 0 {
+
+				queryMetaInfo[dataSource] = queryList[0].V3
+			}
+			for _, query := range queryList {
 				wg.Add(1)
-				threadCounter++
-				go fetchQuery(c, target, dataSource, query, cst, cdt, cn, resultsWithCategories, &mu, &wg)
+
+				queryIdentifier := queryList[0].V4
+				go fetchQuery(c, target, dataSource, queryIdentifier, query, cst, cdt, cn, cwdir, cid, cpid, resultsWithCategories, &mu, &wg)
 			}
 		}
 	}
 	wg.Wait()
-	// fmt.Println("resultsWithCategories: ", resultsWithCategories)
-	return resultsWithCategories, nil
+	return resultsWithCategories, queryMetaInfo, nil
 }
 
-func fetchQuery(c *Config, target, dataSource string, query tuple.T2[string, string], cst, cdt time.Time, cn string, mapTargetSourceName map[string]map[string]map[string]model.Matrix, mu *sync.Mutex, wg *sync.WaitGroup) {
+func fetchQuery(c *Config, target, dataSource, queryIdentifier string, query tuple.T4[string, string, []string, string], cst, cdt time.Time, cn, cwdir, cid string, cpid int, mapTargetSourceName map[string]map[string]map[string]model.Matrix, mu *sync.Mutex, wg *sync.WaitGroup) {
 	defer wg.Done()
 	client, err := NewFetchClient(c)
 	if err != nil {
@@ -43,8 +47,7 @@ func fetchQuery(c *Config, target, dataSource string, query tuple.T2[string, str
 	}
 
 	// Insert the range for the query by event in the container engine.
-	// queryString := strings.Replace(query.V2, "[DURATION]", duration, -1)
-	fetcher, err := FetchMonitoringTargets(client, query.V2, cst, cdt, cn)
+	fetcher, err := FetchMonitoringTargets(client, queryIdentifier, query.V2, cst, cdt, cn, cwdir, cid, cpid)
 	if err != nil {
 		logrus.Error("Error fetching monitoring targets", err)
 		return
@@ -60,38 +63,19 @@ func fetchQuery(c *Config, target, dataSource string, query tuple.T2[string, str
 		mapTargetSourceName[target][dataSource] = make(map[string]model.Matrix)
 	}
 	if _, exists := mapTargetSourceName[target][dataSource][query.V1]; !exists {
-		mapTargetSourceName[target][dataSource][query.V1] = model.Matrix{}
+		mapTargetSourceName[target][dataSource][query.V1] = fetcher
+	} else {
+		logrus.Warn("Query already exists for target: ", target, " dataSource: ", dataSource, " query: ", query.V1)
 	}
-
-	// for _, sample := range fetcher {
-	// 	found := false
-	// 	for _, existingSample := range (mapTargetSourceName)[target][dataSource][query.V1] {
-	// 		if existingSample.Timestamp == sample.Timestamp && existingSample.Metric.Equal(sample.Metric) {
-	// 			found = true
-	// 			break
-	// 		}
-	// 	}
-	// 	if !found {
-	// 		(mapTargetSourceName)[target][dataSource][query.V1] = append(
-	// 			(mapTargetSourceName)[target][dataSource][query.V1], sample)
-	// 	}
-	// }
-	mapTargetSourceName[target][dataSource][query.V1] = fetcher
 }
 
-// 		for range (mapTargetSourceName)[target][dataSource][query.V1] {
-// 			(mapTargetSourceName)[target][dataSource][query.V1] = append(
-// 				(mapTargetSourceName)[target][dataSource][query.V1], sample)
-// 		}
-// 	}
-// }
+func StartMonitoring(c *Config, cfp string, cst, cdt time.Time, cn, cwdir, cid string, cpid int) (map[string]map[string]map[string]model.Matrix, map[string][]string, error) {
+	queriesMap := ConsolidateQueries(ReadMonitoringConfiguration(cfp)) // Ignore labels
 
-func StartMonitoring(c *Config, cfp string, cst, cdt time.Time, cn string) (map[string]map[string]map[string]model.Matrix, error) {
-	resultMap, err := FetchMonitoringSources(c, cst, cdt, cn, ConsolidateQueries((ReadMonitoringConfiguration(cfp))))
+	resultMap, QueryMetaInfo, err := FetchMonitoringSources(c, cst, cdt, cn, cwdir, cid, cpid, queriesMap)
 	if err != nil {
-		logrus.Error("Error shooting queries: ", err)
-		return resultMap, err
+		logrus.Error("Error fetching queries: ", err)
+		return resultMap, QueryMetaInfo, err
 	}
-	// fmt.Printf("resultMap: %v\n", resultMap)
-	return resultMap, nil
+	return resultMap, QueryMetaInfo, err
 }

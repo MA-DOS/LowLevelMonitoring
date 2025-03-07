@@ -46,9 +46,11 @@ func (c *NextflowContainer) GetContainerEvents(containerEventChannel chan<- Next
 			select {
 			case event := <-eventChan:
 				if event.Type == events.ContainerEventType {
+					jobCounter := 0
 					switch event.Action {
 					case "start":
 						mu.Lock()
+						jobCounter++
 						if processedStarts[event.Actor.ID] {
 							mu.Unlock()
 							continue
@@ -61,6 +63,10 @@ func (c *NextflowContainer) GetContainerEvents(containerEventChannel chan<- Next
 							if err != nil {
 								log.Printf("Error inspecting started container %s: %v", event.Actor.ID, err)
 								return
+							}
+							if jobCounter == 1 {
+								// TODO: Not displayed correctly.
+								logrus.Info("New Workflow run detected...!")
 							}
 
 							if len(containerInfo.Name) > 0 && re.MatchString(containerInfo.Name) {

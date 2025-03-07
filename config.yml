@@ -6,193 +6,244 @@ server_configurations:
       timeout: 10s
       interval: 1
 monitoring_targets:
+  # TODO: Modify the labels according to output goal...
   task_metadata:
     enabled: false
-    data_sources: 
-    - source: cAdvisor
-      metrics:
-      - name: container_tasks_state
-        query: container_tasks_state{name=~"nxf-.*"}
-      - name: container start-time
-        query: container_start_time_seconds{name=~"nxf-.*"}
-    - source: slurm-job-exporter
-      metrics:
-      - name: slurm-job-information
-        query: max by (ave_cpu, ave_cpu_freq, ave_rss, ave_vm_size, command, consumed_energy, cpu_ids, cpus, instance, job, job_name, job_state, max_disk_read, max_disk_write, max_rss, max_vm_size, memory, node, num_cpus, num_tasks, partition, priority, run_time, std_err, std_in, submit_time, threads_per_core, user, work_dir)(slurm_job_id)
-    - source: process-exporter
-      metrics:
-      - name: namedprocess_namegroup_num_threads
-        query: namedprocess_namegroup_num_threads
+    data_sources:
+      - source: slurm-job-exporter
+        labels:
+          [
+            command,
+            cpu_ids,
+            cpus,
+            instance,
+            job,
+            job_name,
+            job_state,
+            node,
+            num_cpus,
+            num_tasks,
+            partition,
+            priority,
+            run_time,
+            std_err,
+            std_in,
+            threads_per_core,
+            user,
+            work_dir,
+          ]
+        identifier: work_dir
+        metrics:
+          - name: slurm-job-information
+            query: slurm_job_id
+      - source: process-exporter
+        labels: [instance, groupname]
+        identifier: groupname
+        metrics:
+          - name: namedprocess_namegroup_num_threads
+            query: namedprocess_namegroup_num_threads
   cpu:
     enabled: true
     data_sources:
-    - source: cAdvisor 
-      metrics:
-      - name: container_cpu_user_seconds_total
-        # query: max by (name, id, image,job)(container_cpu_user_seconds_total{name=~"nxf-.*"})
-        # query: container_cpu_user_seconds_total{name=~"nxf-.*"}
-        query: container_cpu_user_seconds_total
+      - source: docker-activity
+        labels: [instance, container_name, container_id]
+        identifier: container_name
+        metrics:
+          - name: cpuPercent
+            query: cpuPercent
+      # - source: cAdvisor
+      #   labels: [name, id, image, job]
+      #   identifier: name
+      #   metrics:
+      #     - name: container_cpu_user_seconds_total
+      #       query: container_cpu_user_seconds_total
+      #     - name: container_cpu_system_seconds_total
+      #       query: container_cpu_system_seconds_total
     # - source: cgroups-exporter
+    #   labels: [instance, path]
+    #   identifier: path
     #   metrics:
+    #   - name: cgroups_cpu_cpuacct_stat_system
+    #     query: cgroups_cpu_cpuacct_stat_system
+    #   - name: cgroups_cpu_cpuacct_stat_user
+    #     query: cgroups_cpu_cpuacct_stat_user
     #   - name: cgroups_cpu_pressure_full_total
     #     query: cgroups_cpu_pressure_full_total
+    #   - name: cgroups_cpu_pressure_some_total
+    #     query: cgroups_cpu_pressure_some_total
     #   - name: cgroups_pids_count
     #     query: cgroups_pids_count
-    # - source: scaphandre
+    # - source: scaphandre_containers
+    #   labels: [instance, job, pid]
+    #   identifier: container_names
     #   metrics:
     #   - name: scaph_process_cpu_usage_percentage
-    #     query: max by (instance, job, pid) (scaph_process_cpu_usage_percentage)
-    # - source: node-exporter
+    #     query: scaph_process_cpu_usage_percentage
+    # - source: scaphandre_pids
+    #   labels: [instance, job, pid]
+    #   identifier: pid
     #   metrics:
-    #   - name: node_cpu_core_throttles_total
-    #     query: node_cpu_core_throttles_total
-    #   - name: node_cpu_scaling_frequency_hertz
-    #     query: node_cpu_scaling_frequency_hertz
-    #   - name: node_cpu_seconds_total
-    #     query: node_cpu_seconds_total
-    #   - name: node_pressure_cpu_waiting_seconds_total
-    #     query: node_pressure_cpu_waiting_seconds_total
+    #   - name: scaph_process_cpu_usage_percentage
+    #     query: scaph_process_cpu_usage_percentage
     # - source: process-exporter
+    #   labels: [mode, instance, groupname]
+    #   identifier: groupname
     #   metrics:
     #   - name: namedprocess_namegroup_cpu_seconds_total
     #     query: namedprocess_namegroup_cpu_seconds_total
     #   - name: namedprocess_namegroup_thread_cpu_seconds_total
     #     query: namedprocess_namegroup_thread_cpu_seconds_total
   memory:
-    enabled: false
+    enabled: true
     data_sources:
-    - source: cAdvisor
-      metrics:
-      - name: container_memory_usage_bytes
-        query: max by (name, id, image, job)(container_memory_usage_bytes{name=~"nxf-.*"})
-      - name: container_memory_failures_total
-        query: max by (name, id, image, job)(container_memory_failures_total{name=~"nxf-.*"})
-      - name: container_memory_rss
-        query: max by (name, id, image, job)(container_memory_rss{name=~"nxf-.*"})
-      - name: container_memory_working_set_bytes
-        query: max by (name, id, image, job)(container_memory_working_set_bytes{name=~"nxf-.*"})
-    - source: cgroups-exporter
-      metrics:
-      - name: cgroups_memory_usage
-        query: cgroups_memory_usage
-      - name: cgroups_memory_pressure_full_total
-        query: cgroups_memory_pressure_full_total
-    - source: scaphandre
-      metrics:
-      - name: scaph_process_memory_bytes
-        query: scaph_process_memory_bytes{container_scheduler=~"docker"}
-      - name: scaph_process_memory_virtual_bytes
-        query: scaph_process_memory_virtual_bytes{container_scheduler=~"docker"}
-    - source: node-exporter
-      metrics:
-      - name: node_pressure_memory_waiting_seconds_total
-        query: node_pressure_memory_waiting_seconds_total
-    - source: process-exporter
-      metrics:
-      - name: namedprocess_memory_bytes
-        query: namedprocess_memory_bytes
+      - source: cAdvisor
+        labels: [name, id, image, job]
+        identifier: name
+        metrics:
+          - name: container_memory_usage_bytes
+            query: container_memory_usage_bytes
+      #   - name: container_memory_failures_total
+      #     query: max by (name, id, image, job)(container_memory_failures_total{name=~"nxf-.*"})
+      #   - name: container_memory_rss
+      #     query: max by (name, id, image, job)(container_memory_rss{name=~"nxf-.*"})
+      #   - name: container_memory_working_set_bytes
+      #     query: max by (name, id, image, job)(container_memory_working_set_bytes{name=~"nxf-.*"})
+      - source: docker-activity
+        labels: [instance, container_name, container_id]
+        identifier: container_name
+        metrics:
+          - name: memoryUsage
+            query: memoryUsage
+    # - source: cgroups-exporter
+    #   metrics:
+    #   - name: cgroups_memory_usage
+    #     query: cgroups_memory_usage
+    #   - name: cgroups_memory_pressure_full_total
+    #     query: cgroups_memory_pressure_full_total
+    # - source: scaphandre
+    #   metrics:
+    #   - name: scaph_process_memory_bytes
+    #     query: scaph_process_memory_bytes{container_scheduler=~"docker"}
+    #   - name: scaph_process_memory_virtual_bytes
+    #     query: scaph_process_memory_virtual_bytes{container_scheduler=~"docker"}
+    # - source: node-exporter
+    #   metrics:
+    #   - name: node_pressure_memory_waiting_seconds_total
+    #     query: node_pressure_memory_waiting_seconds_total
+    # - source: process-exporter
+    #   metrics:
+    #   - name: namedprocess_memory_bytes
+    #     query: namedprocess_memory_bytes
   disk:
     enabled: false
     data_sources:
-    - source: process-exporter
-      metrics:
-      - name: namedprocess_read_bytes_total
-        query: namedprocess_read_bytes_total
-      - name: namedprocess_write_bytes_total
-        query: namedprocess_write_bytes_total 
-    - source: cAdvisor
-      metrics:
-      - name: container_blkio_device_usage_total
-        query: max by (name, id, image, job)(container_blkio_device_usage_total{name=~"nxf-.*"})
-      - name: container_fs_io_current
-        query: max by (name, id, image, job)(container_fs_io_current{name=~"nxf-.*"})
-      - name: container_fs_io_time_seconds_total
-        query: max by (name, id, image, job)(container_fs_io_time_seconds_total{name=~"nxf-.*"})
-      - name: container_fs_io_time_weighted_seconds_total
-        query: max by (name, id, image, job)(container_fs_io_time_weighted_seconds_total{name=~"nxf-.*"})
-      - name: container_fs_writes_total
-        query: max by (name, id, image, job)(container_fs_writes_total{name=~"nxf-.*"})
-      - name: container_fs_reads_total
-        query: max by (name, id, image, job)(container_fs_reads_total{name=~"nxf-.*"})
-      - name: container_fs_reads_bytes_total
-        query: max by (name, id, image, job)(container_fs_reads_bytes_total{name=~"nxf-.*"})
-      - name: container_fs_writes_bytes_total
-        query: max by (name, id, image, job)(container_fs_writes_bytes_total{name=~"nxf-.*"})
-    - source: cgroups-exporter
-      metrics:
-      - name: cgroups_io_pressure_full_total
-        query: (cgroups_io_pressure_full_total)
-    - source: scaphandre
-      metrics:
-        - name: scaph_process_disk_total_read_bytes
-          query: scaph_process_disk_total_read_bytes
-        - name: scaph_process_disk_total_write_bytes
-          query: scaph_process_disk_total_write_bytes
-    - source: node-exporter
-      metrics:
-      - name: node_disk_io_time_seconds_total
-        query: node_disk_io_time_seconds_total
-      - name: node_disk_writes_completed_total
-        query: node_disk_writes_completed_total
-      - name: node_disk_read_bytes_total
-        query: node_disk_read_bytes_total
-      - name: node_disk_reads_completed_total
-        query: node_disk_reads_completed_total
-      - name: node_disk_written_bytes_totaly
-        query: node_disk_written_bytes_total
-      - name: node_disk_write_time_seconds_total
-        query: node_disk_write_time_seconds_total
-      - name: node_disk_writes_completed_total
-        query: node_disk_writes_completed_total
-      - name: node_nfsd_disk_bytes_written_total
-        query: node_nfsd_disk_bytes_written_total
-      - name: node_nfsd_disk_bytes_read_total
-        query: node_nfsd_disk_bytes_read_total
-      - name: node_pressure_io_waiting_seconds_total
-        query: node_pressure_io_waiting_seconds_total
+      - source: process-exporter
+        metrics:
+          - name: namedprocess_read_bytes_total
+            query: namedprocess_read_bytes_total
+          - name: namedprocess_write_bytes_total
+            query: namedprocess_write_bytes_total
+      - source: cAdvisor
+        metrics:
+          - name: container_blkio_device_usage_total
+            query: max by (name, id, image, job)(container_blkio_device_usage_total{name=~"nxf-.*"})
+          - name: container_fs_io_current
+            query: max by (name, id, image, job)(container_fs_io_current{name=~"nxf-.*"})
+          - name: container_fs_io_time_seconds_total
+            query: max by (name, id, image, job)(container_fs_io_time_seconds_total{name=~"nxf-.*"})
+          - name: container_fs_io_time_weighted_seconds_total
+            query: max by (name, id, image, job)(container_fs_io_time_weighted_seconds_total{name=~"nxf-.*"})
+          - name: container_fs_writes_total
+            query: max by (name, id, image, job)(container_fs_writes_total{name=~"nxf-.*"})
+          - name: container_fs_reads_total
+            query: max by (name, id, image, job)(container_fs_reads_total{name=~"nxf-.*"})
+          - name: container_fs_reads_bytes_total
+            query: max by (name, id, image, job)(container_fs_reads_bytes_total{name=~"nxf-.*"})
+          - name: container_fs_writes_bytes_total
+            query: max by (name, id, image, job)(container_fs_writes_bytes_total{name=~"nxf-.*"})
+      - source: cgroups-exporter
+        metrics:
+          - name: cgroups_io_pressure_full_total
+            query: (cgroups_io_pressure_full_total)
+      - source: scaphandre
+        metrics:
+          - name: scaph_process_disk_total_read_bytes
+            query: scaph_process_disk_total_read_bytes
+          - name: scaph_process_disk_total_write_bytes
+            query: scaph_process_disk_total_write_bytes
+      - source: node-exporter
+        metrics:
+          - name: node_disk_io_time_seconds_total
+            query: node_disk_io_time_seconds_total
+          - name: node_disk_writes_completed_total
+            query: node_disk_writes_completed_total
+          - name: node_disk_read_bytes_total
+            query: node_disk_read_bytes_total
+          - name: node_disk_reads_completed_total
+            query: node_disk_reads_completed_total
+          - name: node_disk_written_bytes_totaly
+            query: node_disk_written_bytes_total
+          - name: node_disk_write_time_seconds_total
+            query: node_disk_write_time_seconds_total
+          - name: node_disk_writes_completed_total
+            query: node_disk_writes_completed_total
+          - name: node_nfsd_disk_bytes_written_total
+            query: node_nfsd_disk_bytes_written_total
+          - name: node_nfsd_disk_bytes_read_total
+            query: node_nfsd_disk_bytes_read_total
+          - name: node_pressure_io_waiting_seconds_total
+            query: node_pressure_io_waiting_seconds_total
   network:
     enabled: false
     data_sources:
-    - source: cAdvisor
-      metrics:
-      - name: container_network_receive_bytes_total
-        query: max by (name, id, image, job)(container_network_receive_bytes_total{name=~"nxf-.*"}) 
-      - name: container_network_receive_packets_dropped_total
-        query: max by (name, id, image, job)(container_network_receive_packets_dropped_total{name=~"nxf-.*"})
-      - name: container_network_receive_packets_total
-        query: max by (name, id, image, job)(container_network_receive_packets_total{name=~"nxf-.*"})
-      - name: container_network_transmit_bytes_total
-        query: max by (name, id, image, job)(container_network_transmit_bytes_total{name=~"nxf-.*"})
-      - name: container_network_transmit_errors_total
-        query: max by (name, id, image, job)(container_network_transmit_errors_total{name=~"nxf-.*"})
-    - source: node-exporter
-      metrics:
-      - name: node_network_transmit_packets_total
-        query: node_network_transmit_packets_total
-      - name: node_network_receive_bytes_total
-        query: node_network_receive_bytes_total
+      - source: cAdvisor
+        metrics:
+          - name: container_network_receive_bytes_total
+            query: max by (name, id, image, job)(container_network_receive_bytes_total{name=~"nxf-.*"})
+          - name: container_network_receive_packets_dropped_total
+            query: max by (name, id, image, job)(container_network_receive_packets_dropped_total{name=~"nxf-.*"})
+          - name: container_network_receive_packets_total
+            query: max by (name, id, image, job)(container_network_receive_packets_total{name=~"nxf-.*"})
+          - name: container_network_transmit_bytes_total
+            query: max by (name, id, image, job)(container_network_transmit_bytes_total{name=~"nxf-.*"})
+          - name: container_network_transmit_errors_total
+            query: max by (name, id, image, job)(container_network_transmit_errors_total{name=~"nxf-.*"})
+      - source: node-exporter
+        metrics:
+          - name: node_network_transmit_packets_total
+            query: node_network_transmit_packets_total
+          - name: node_network_receive_bytes_total
+            query: node_network_receive_bytes_total
   energy:
-    enabled: false
+    enabled: true
     data_sources:
-    - source: slurm-job-expoter
-      metrics:
-      - name: slurm-job-energy
-        query: slurm_job_id
-    - source: scaphandre
-      metrics:
-      - name: scaph_host_energy_microjoules
-        query: scaph_host_energy_microjoules 
-      - name: scaph_host_power_microwatts
-        query: scaph_host_power_microwatts
-      - name: scaph_process_power_consumption_microwatts
-        query: max by (instance, job, pid) (scaph_process_power_consumption_microwatts)
-    - source: node-exporter
-      metrics:
-      - name: node_cooling_device_cur_state
-        query: node_cooling_device_cur_state
-      - name: node_cooling_device_max_state
-        query: node_cooling_device_max_state
-      - name: node_hwmon_temp_celsius
-        query: node_hwmon_temp_celsius
-      - name: node_hwmon_temp_max_celsius
-        query: node_hwmon_temp_max_celsius
+      # - source: slurm-job-exporter
+      #   metrics:
+      #     - name: slurm-job-energy
+      #       query: slurm_job_id
+      - source: docker-activity
+        labels: [instance, container_name, container_id]
+        identifier: container_name
+        metrics:
+          - name: energyUsage
+            query: cpuEnergy
+      # - source: scaphandre
+      #   metrics:
+      #     - name: scaph_host_energy_microjoules
+      #       query: scaph_host_energy_microjoules
+      #     - name: scaph_host_power_microwatts
+      #       query: scaph_host_power_microwatts
+      #     - name: scaph_process_power_consumption_microwatts
+      #       query: max by (instance, job, pid) (scaph_process_power_consumption_microwatts)
+      #     - name: scaph_socket_rapl_mmio_energy_microjoules
+      #       query: scaph_socket_rapl_mmio_energy_microjoules
+      # - source: node-exporter
+      #   metrics:
+      #     - name: node_cooling_device_cur_state
+      #       query: node_cooling_device_cur_state
+      #     - name: node_cooling_device_max_state
+      #       query: node_cooling_device_max_state
+      #     - name: node_hwmon_temp_celsius
+      #       query: node_hwmon_temp_celsius
+      #     - name: node_hwmon_temp_max_celsius
+      #       query: node_hwmon_temp_max_celsius
