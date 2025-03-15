@@ -33,6 +33,7 @@ cleanup() {
      docker rm -f node-exporter > /dev/null 2>&1 || true
      pkill -f prometheus || true
      pkill -f slurm_exporter || true
+     pkill -f ceems_exporter || true
      cd $DOCKER_ACTIVITY && docker-compose down
      exit 1
 }
@@ -46,6 +47,7 @@ cleanup() {
  docker rm -f node-exporter > /dev/null 2>&1 || true
  pkill -f prometheus || true
  pkill -f slurm_exporter || true
+ pkill -f ceems_exporter || true
  cd $DOCKER_ACTIVITY && docker-compose down
  exit 1
 
@@ -67,6 +69,11 @@ cd $DOCKER_ACTIVITY
 echo "Running docker-activity"
 sleep 2
 docker-compose up -d
+
+# Run ceems exporter
+echo "Running ceems exporter"
+sleep 2
+docker run -p 9010:9010 -d --privileged mahendrapaipuri/ceems:latest ceems_exporter
 
 # Run cgroups exporter for slurm
 echo "Navigating to $CGROUP_EXPORTER_SLURM"
@@ -107,8 +114,6 @@ cd $SCAPH_EXPORTER
 echo "Running scaphandre"
 sleep 2
 ./scaphandre prometheus --containers > /dev/null 2>&1 &
-
-# Run docker-activity
 
 # Run node-exporter
 echo "Running node-exporter in docker container"
