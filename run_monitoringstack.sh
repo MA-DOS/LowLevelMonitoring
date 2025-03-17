@@ -13,7 +13,7 @@ trap cleanup ERR
 
 # Define the dirs for the config files
 USER=nfomin3
-PROM_DIR=/home/$USER/dev/prometheus
+PROM_DIR=/home/$USER/dev/LowLevelMonitoring/prometheus
 PROC_CONFIG=/home/$USER/dev/process-exporter/config/process-exporter-config.yml
 SCAPH_EXPORTER=/home/$USER/dev/scaphandre/target/release
 CGROUP_EXPORTER_SLURM=/home/$USER/dev/cgroups-exporter

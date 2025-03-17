@@ -39,6 +39,7 @@ func (c *NextflowContainer) GetContainerEvents(containerEventChannel chan<- Next
 
 	processedStarts := make(map[string]bool) // Track started containers
 	processedDies := make(map[string]bool)   // Track died containers
+	containerPIDs := make(map[string]int)    // Track container PIDs
 	var mu sync.Mutex
 
 	go func() {
@@ -79,6 +80,9 @@ func (c *NextflowContainer) GetContainerEvents(containerEventChannel chan<- Next
 									ContainerID: containerInfo.ID,
 									WorkDir:     containerInfo.Config.WorkingDir,
 								}
+								mu.Lock()
+								containerPIDs[event.Actor.ID] = containerInfo.State.Pid
+								mu.Unlock()
 
 								WriteToOutput(nextflowContainer)
 							}
@@ -102,11 +106,13 @@ func (c *NextflowContainer) GetContainerEvents(containerEventChannel chan<- Next
 
 							if len(containerInfo.Name) > 0 && re.MatchString(containerInfo.Name) {
 								logrus.Infof("[DIED] nextflow container: %s died...!\n", containerInfo.Name)
+								mu.Lock()
+								pidOfDiedContainer := containerPIDs[event.Actor.ID]
 								nextflowContainer := NextflowContainer{
 									StartTime:   containerInfo.State.StartedAt,
 									DieTime:     containerInfo.State.FinishedAt,
 									Name:        strings.TrimPrefix(containerInfo.Name, "/"),
-									PID:         containerInfo.State.Pid,
+									PID:         pidOfDiedContainer,
 									ContainerID: containerInfo.ID,
 									WorkDir:     containerInfo.Config.WorkingDir,
 								}

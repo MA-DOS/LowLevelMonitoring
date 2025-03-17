@@ -59,32 +59,32 @@ monitoring_targets:
       #       query: container_cpu_user_seconds_total
       #     - name: container_cpu_system_seconds_total
       #       query: container_cpu_system_seconds_total
-    # - source: cgroups-exporter
-    #   labels: [instance, path]
-    #   identifier: path
-    #   metrics:
-    #   - name: cgroups_cpu_cpuacct_stat_system
-    #     query: cgroups_cpu_cpuacct_stat_system
-    #   - name: cgroups_cpu_cpuacct_stat_user
-    #     query: cgroups_cpu_cpuacct_stat_user
-    #   - name: cgroups_cpu_pressure_full_total
-    #     query: cgroups_cpu_pressure_full_total
-    #   - name: cgroups_cpu_pressure_some_total
-    #     query: cgroups_cpu_pressure_some_total
-    #   - name: cgroups_pids_count
-    #     query: cgroups_pids_count
-    # - source: scaphandre_containers
-    #   labels: [instance, job, pid]
-    #   identifier: container_names
-    #   metrics:
-    #   - name: scaph_process_cpu_usage_percentage
-    #     query: scaph_process_cpu_usage_percentage
-    # - source: scaphandre_pids
-    #   labels: [instance, job, pid]
-    #   identifier: pid
-    #   metrics:
-    #   - name: scaph_process_cpu_usage_percentage
-    #     query: scaph_process_cpu_usage_percentage
+      # - source: cgroups-exporter
+      #   labels: [instance, path]
+      #   identifier: path
+      #   metrics:
+      #   - name: cgroups_cpu_cpuacct_stat_system
+      #     query: cgroups_cpu_cpuacct_stat_system
+      #   - name: cgroups_cpu_cpuacct_stat_user
+      #     query: cgroups_cpu_cpuacct_stat_user
+      #   - name: cgroups_cpu_pressure_full_total
+      #     query: cgroups_cpu_pressure_full_total
+      #   - name: cgroups_cpu_pressure_some_total
+      #     query: cgroups_cpu_pressure_some_total
+      #   - name: cgroups_pids_count
+      #     query: cgroups_pids_count
+      - source: scaphandre_containers
+        labels: [instance, job, pid]
+        identifier: container_names
+        metrics:
+          - name: scaph_process_cpu_usage_percentage
+            query: scaph_process_cpu_usage_percentage
+      - source: scaphandre_pids
+        labels: [instance, job, pid]
+        identifier: pid
+        metrics:
+          - name: scaph_process_cpu_usage_percentage
+            query: scaph_process_cpu_usage_percentage
     # - source: process-exporter
     #   labels: [mode, instance, groupname]
     #   identifier: groupname
