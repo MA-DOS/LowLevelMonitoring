@@ -35,7 +35,6 @@ cleanup() {
      pkill -f slurm_exporter || true
      pkill -f ceems_exporter || true
      cd $DOCKER_ACTIVITY && docker-compose down
-     exit 1
 }
 
 # Kill any running instances of the programs
@@ -49,7 +48,6 @@ cleanup() {
  pkill -f slurm_exporter || true
  pkill -f ceems_exporter || true
  cd $DOCKER_ACTIVITY && docker-compose down
- exit 1
 
 # Run the services
 echo "Monitoring Stack is starting..."
@@ -87,7 +85,7 @@ echo "Navigating to $CGROUP_EXPORTER"
 cd $CGROUP_EXPORTER
 echo "Running cgroups-exporter mosquito"
 sleep 2
-python3 -m cgroups_exporter --cgroups-path "/sys/fs/cgroup/*/docker/*" 
+python3 -m cgroups_exporter --cgroups-path "/sys/fs/cgroup/*/docker/*" > /dev/null 2>&1 &
 if [ $? -ne 0 ]; then
     echo "Failed to start cgroups-exporter mosquito. Check cgroups_exporter_mosquito.log for details."
     cleanup
