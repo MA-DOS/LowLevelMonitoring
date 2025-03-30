@@ -74,23 +74,23 @@ sleep 2
 docker run -p 9010:9010 -d --privileged mahendrapaipuri/ceems:latest ceems_exporter
 
 # Run cgroups exporter for slurm
-echo "Navigating to $CGROUP_EXPORTER_SLURM"
-cd $CGROUP_EXPORTER_SLURM
-echo "Running cgroups-exporter for slurm"
-sleep 2
-./cgroups_exporter -method slurm > /dev/null 2>&1 &
+# echo "Navigating to $CGROUP_EXPORTER_SLURM"
+# cd $CGROUP_EXPORTER_SLURM
+# echo "Running cgroups-exporter for slurm"
+# sleep 2
+# ./cgroups_exporter -method slurm > /dev/null 2>&1 &
 
 # Run cgroups exporter
-echo "Navigating to $CGROUP_EXPORTER"
-cd $CGROUP_EXPORTER
-echo "Running cgroups-exporter mosquito"
-sleep 2
-python3 -m cgroups_exporter --cgroups-path "/sys/fs/cgroup/*/docker/*" > /dev/null 2>&1 &
-if [ $? -ne 0 ]; then
-    echo "Failed to start cgroups-exporter mosquito. Check cgroups_exporter_mosquito.log for details."
-    cleanup
-    exit 1
-fi
+# echo "Navigating to $CGROUP_EXPORTER"
+# cd $CGROUP_EXPORTER
+# echo "Running cgroups-exporter mosquito"
+# sleep 2
+# python3 -m cgroups_exporter --cgroups-path "/sys/fs/cgroup/*/docker/*" > /dev/null 2>&1 &
+# if [ $? -ne 0 ]; then
+#     echo "Failed to start cgroups-exporter mosquito. Check cgroups_exporter_mosquito.log for details."
+#     cleanup
+#     exit 1
+# fi
 
 # Run cadvisor exporter
 echo "Navigating to $CADVISOR_EXPORTER"
@@ -107,11 +107,11 @@ sleep 2
 ./slurm_exporter > /dev/null 2>&1 &
 
 # Run scaphandre
-echo "Navigating to $SCAPH_EXPORTER"
-cd $SCAPH_EXPORTER
-echo "Running scaphandre"
-sleep 2
-./scaphandre prometheus --containers > /dev/null 2>&1 &
+# echo "Navigating to $SCAPH_EXPORTER"
+# cd $SCAPH_EXPORTER
+# echo "Running scaphandre"
+# sleep 2
+# ./scaphandre prometheus --containers > /dev/null 2>&1 &
 
 # Run node-exporter
 echo "Running node-exporter in docker container"
