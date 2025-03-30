@@ -85,14 +85,14 @@ monitoring_targets:
         metrics:
           - name: scaph_process_cpu_usage_percentage
             query: scaph_process_cpu_usage_percentage
-    # - source: process-exporter
-    #   labels: [mode, instance, groupname]
-    #   identifier: groupname
-    #   metrics:
-    #   - name: namedprocess_namegroup_cpu_seconds_total
-    #     query: namedprocess_namegroup_cpu_seconds_total
-    #   - name: namedprocess_namegroup_thread_cpu_seconds_total
-    #     query: namedprocess_namegroup_thread_cpu_seconds_total
+      - source: process-exporter
+        labels: [mode, instance, groupname]
+        identifier: groupname
+        metrics:
+          - name: namedprocess_namegroup_cpu_seconds_total
+            query: namedprocess_namegroup_cpu_seconds_total
+          - name: namedprocess_namegroup_thread_cpu_seconds_total
+            query: namedprocess_namegroup_thread_cpu_seconds_total
   memory:
     enabled: true
     data_sources:

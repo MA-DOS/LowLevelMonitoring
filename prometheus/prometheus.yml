@@ -18,8 +18,8 @@ scrape_configs:
     scrape_interval: 3s
     static_configs:
       - targets:
-          - "192.168.2.128:9753" 
- 
+          - "192.168.2.128:9753"
+
   - job_name: "slurm-job exporter"
     static_configs:
       - targets:
@@ -29,28 +29,26 @@ scrape_configs:
     scrape_timeout: 3s
     scrape_interval: 3s
     static_configs:
-      - targets: 
+      - targets:
           - "192.168.2.128:9256"
-           
+
   - job_name: "scaphandre"
-    scrape_interval: 2s  # override to allow more time between scrapes
-    fallback_scrape_protocol: "PrometheusText0.0.4"
+    scrape_interval: 2s # override to allow more time between scrapes
+    # fallback_scrape_protocol: "PrometheusText0.0.4"
     static_configs:
       - targets: ["192.168.2.128:8080"]
 
-  - job_name: "cgroups-slurm"
-    scrape_interval: 5s  # override to allow more time between scrapes
-    fallback_scrape_protocol: "PrometheusText0.0.4"
-    static_configs:
-      - targets: ["192.168.2.128:9821"]
+  # - job_name: "cgroups-slurm"
+  #   scrape_interval: 5s # override to allow more time between scrapes
+  #   # fallback_scrape_protocol: "PrometheusText0.0.4"
+  #   static_configs:
+  #     - targets: ["192.168.2.128:9821"]
 
   - job_name: "docker-activity"
     scrape_interval: 15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
     static_configs:
       - targets: ["192.168.2.128:9091"]
 
-  - job_name: 'ceems_exporter'
+  - job_name: "ceems_exporter"
     static_configs:
-      - targets: ['192.168.2.128:9010']
-
-
+      - targets: ["192.168.2.128:9010"]

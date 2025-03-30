@@ -144,7 +144,7 @@ func FetchMonitoringTargets(client api.Client, queryIdentifier, query string, co
 		if err != nil {
 			logrus.Errorf("Error querying Prometheus: %v", err)
 			errorChannel <- err
-			return
+			logrus.Errorf("Error querying Prometheus: %v", err)
 		}
 		if len(warnings) > 0 {
 			logrus.Warnf("Warnings: %v", warnings)
