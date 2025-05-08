@@ -1,0 +1,46 @@
+name: Generate Role Docs
+
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types:
+      - completed
+
+jobs:
+  generate-readme:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Install docsible
+        run: pip install docsible
+
+      - name: Generate role READMEs
+        run: |
+          for role in roles/*; do
+            [ -d "$role" ] && docsible --role "$role" --graph >/dev/null 2>&1
+          done
+
+      - name: Generate root README and cleanup
+        run: |
+          echo "# Role Documentation" > README.md
+          for role in roles/*; do
+            [ -d "$role" ] && echo "- [$(basename "$role")](roles/$(basename "$role")/README.md)" >> README.md
+          done
+          find roles/ -name 'README_backup_*.md' -delete
+
+      - name: Commit and push updated READMEs
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md roles/*/README.md
+          git diff --cached --quiet || git commit -m "docs: update READMEs [skip ci]"
+          git push

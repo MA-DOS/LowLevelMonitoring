@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Semantic Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npx semantic-release
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: "1.18"
+
+      - name: Install dependencies
+        run: go mod tidy
+
+      - name: Build the project
+        run: |
+          make build  # This will use your Makefile to build the Go application
+
+      - name: Install GoReleaser
+        run: curl -sL https://github.com/goreleaser/goreleaser/releases/download/v1.0.0/goreleaser_Linux_x86_64.tar.gz | tar xz -C /usr/local/bin
+
+      - name: Run GoReleaser
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: goreleaser release --rm-dist
+
+      - name: Generate Go Docs
+        run: go doc -all > go-docs.txt
+
+      - name: Upload Go Docs to GitHub
+        uses: actions/upload-artifact@v2
+        with:
+          name: go-docs
+          path: go-docs.txt
