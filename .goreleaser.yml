@@ -25,5 +25,5 @@ release:
     owner: "MA-DOS"
     name: "LowLevelMonitoring"
 
-version:
-  git_tag: true
+git:
+  tag_sort: semver
