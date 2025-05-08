@@ -7,17 +7,17 @@ builds:
       - linux
     goarch:
       - amd64
-    goflags: "-v"
+    flags:
+      - -v
+    artifacts:
+      - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}.tar.gz"
+        format: tar.gz
+        files:
+          - ./bin/*
 
 release:
+  draft: false
+  prerelease: false
   github:
     owner: "MA-DOS"
     name: "LowLevelMonitoring"
-    draft: false
-    prerelease: false
-
-artifacts:
-  - format: tar.gz
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}.tar.gz"
-    files:
-      - ./bin/*
