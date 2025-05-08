@@ -1,4 +1,5 @@
-# This configuration will package the app as a binary for Linux
+# .goreleaser.yml
+
 builds:
   - id: linux
     main: ./main.go
@@ -8,23 +9,15 @@ builds:
       - amd64
     goflags: "-v"
 
-# This section defines the releases
 release:
   github:
     owner: "MA-DOS"
     name: "LowLevelMonitoring"
     draft: false
     prerelease: false
-    token: ${{ secrets.GITHUB_TOKEN }}
 
-# This section defines the artifacts that will be uploaded to GitHub
 artifacts:
   - format: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}.tar.gz"
     files:
       - ./bin/*
-
-# You can also define the versioning strategy (using git tags)
-version:
-  git:
-    tag: v{{ .Version }}
