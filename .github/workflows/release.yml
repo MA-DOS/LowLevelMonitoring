@@ -13,14 +13,12 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # --- Semantic Release section ---
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -36,28 +34,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx semantic-release
-
-      # --- GoReleaser section ---
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.18"
-
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # # --- Optional: Generate Go docs and upload ---
-      # - name: Generate Go Docs
-      #   run: go doc -all > go-docs.txt
-
-      # - name: Upload Go Docs to GitHub
-      #   uses: actions/upload-artifact@v3
-      #   with:
-      #     name: go-docs
-      #     path: go-docs.txt
