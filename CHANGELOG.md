@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/MA-DOS/LowLevelMonitoring/compare/v1.0.0...v1.0.1) (2025-05-08)
+
+
+### Bug Fixes
+
+* update GoReleaser v2 config format ([b69e9c7](https://github.com/MA-DOS/LowLevelMonitoring/commit/b69e9c7786f6c715cb53b09ac95a119531cef928))
+
 # 1.0.0 (2025-05-08)
 
 
