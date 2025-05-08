@@ -89,6 +89,9 @@ func NewFetchClient(c *Config) (api.Client, error) {
 	return client, nil
 }
 
+// Dynamically format the PromQL query based on the available identifiers.
+func UseLabelSelctor() {}
+
 // Using Prometheus API to fetch the monitoring targets.
 func FetchMonitoringTargets(client api.Client, queryIdentifier, query string, containerStartUp, containerDie time.Time, containerName, cwdir, cid string, cpid int) (model.Matrix, error) {
 	var wg sync.WaitGroup
@@ -107,7 +110,8 @@ func FetchMonitoringTargets(client api.Client, queryIdentifier, query string, co
 	logrus.Info("Container PID is : ", cpid)
 
 	nextflowQuery := func(query, queryIdentifier string) string {
-		// TODO: Need to be distinguished depending on the identifier.
+
+		// TODO: Outsoure this as a function.
 		switch queryIdentifier {
 		// When name is identifier the container name can specify the query.
 		case "name":
@@ -180,6 +184,9 @@ func FetchMonitoringTargets(client api.Client, queryIdentifier, query string, co
 	}
 }
 
+// Receive MetaData about container events.
+func ReceiveMetaData() {}
+
 func ScheduleMonitoring(config Config, configPath string) {
 	monitorIsIdle := false
 	channelCounter := 0
@@ -189,12 +196,14 @@ func ScheduleMonitoring(config Config, configPath string) {
 	workflowContainer := watcher.NextflowContainer{}
 	go workflowContainer.GetContainerEvents(containerEventChannel)
 
+	// TODO: Outsource the container info as a function or struct. Reuse the container struct of the watcher.
 	// Run the main monitoring loop by receiving container events.
 	for {
 		select {
 		case workflowContainer := <-containerEventChannel:
 			channelCounter++
 			monitorIsIdle = false
+			// Call helper function.
 			parsedStartTime, _ := time.Parse(time.RFC3339, workflowContainer.StartTime)
 			parsedDieTime, _ := time.Parse(time.RFC3339, workflowContainer.DieTime)
 			containerName := (workflowContainer.Name)

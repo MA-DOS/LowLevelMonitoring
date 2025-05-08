@@ -13,26 +13,34 @@ scrape_configs:
       - targets:
           - "192.168.2.128:8081"
 
-  - job_name: "cgroups exporter"
-    scrape_timeout: 3s
-    scrape_interval: 3s
-    static_configs:
-      - targets:
-          - "192.168.2.128:9753"
+  # - job_name: "cgroups exporter"
+  #   scrape_timeout: 3s
+  #   scrape_interval: 3s
+  #   static_configs:
+  #     - targets:
+  #         - "192.168.2.128:9753"
 
   - job_name: "slurm-job exporter"
+    scrape_timeout: 3s
+    scrape_interval: 3s
     static_configs:
       - targets:
           - "192.168.2.128:8082"
 
   - job_name: "process exporter"
-    scrape_timeout: 3s
-    scrape_interval: 3s
+    scrape_timeout: 1s
+    scrape_interval: 1s
     static_configs:
       - targets:
           - "192.168.2.128:9256"
 
-  - job_name: "scaphandre"
+  # - job_name: "scaphandre"
+  #   scrape_interval: 2s # override to allow more time between scrapes
+  #   # fallback_scrape_protocol: "PrometheusText0.0.4"
+  #   static_configs:
+  #     - targets: ["192.168.2.128:8080"]
+
+  - job_name: "hw-counter"
     scrape_interval: 2s # override to allow more time between scrapes
     # fallback_scrape_protocol: "PrometheusText0.0.4"
     static_configs:
@@ -49,6 +57,6 @@ scrape_configs:
     static_configs:
       - targets: ["192.168.2.128:9091"]
 
-  - job_name: "ceems_exporter"
-    static_configs:
-      - targets: ["192.168.2.128:9010"]
+  # - job_name: "ceems_exporter"
+  #   static_configs:
+  #     - targets: ["192.168.2.128:9010"]

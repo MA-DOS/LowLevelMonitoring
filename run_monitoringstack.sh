@@ -69,9 +69,9 @@ sleep 2
 docker-compose up -d
 
 # Run ceems exporter
-echo "Running ceems exporter"
-sleep 2
-docker run -p 9010:9010 -d --privileged mahendrapaipuri/ceems:latest ceems_exporter
+# echo "Running ceems exporter"
+# sleep 2
+# docker run -p 9010:9010 -d --privileged mahendrapaipuri/ceems:latest ceems_exporter
 
 # Run cgroups exporter for slurm
 # echo "Navigating to $CGROUP_EXPORTER_SLURM"
@@ -100,11 +100,11 @@ sleep 2
 ./cadvisor --docker_only=true --port=8081 > /dev/null 2>&1 &
 
 # Run slurm exporter
-echo "Navigating to $SLURM_EXPORTER"
-cd $SLURM_EXPORTER
-echo "Running slurm-exporter"
-sleep 2
-./slurm_exporter > /dev/null 2>&1 &
+# echo "Navigating to $SLURM_EXPORTER"
+# cd $SLURM_EXPORTER
+# echo "Running slurm-exporter"
+# sleep 2
+# ./slurm_exporter > /dev/null 2>&1 &
 
 # Run scaphandre
 # echo "Navigating to $SCAPH_EXPORTER"
