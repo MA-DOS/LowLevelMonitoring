@@ -24,8 +24,8 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install Node.js dependencies
-        run: npm ci
+      - name: Install semantic-release
+        run: npm install --no-save semantic-release
 
       - name: Git fetch to ensure up-to-date branch
         run: git fetch --all
