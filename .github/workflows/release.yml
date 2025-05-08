@@ -50,12 +50,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # --- Optional: Generate Go docs and upload ---
-      - name: Generate Go Docs
-        run: go doc -all > go-docs.txt
+      # # --- Optional: Generate Go docs and upload ---
+      # - name: Generate Go Docs
+      #   run: go doc -all > go-docs.txt
 
-      - name: Upload Go Docs to GitHub
-        uses: actions/upload-artifact@v3
-        with:
-          name: go-docs
-          path: go-docs.txt
+      # - name: Upload Go Docs to GitHub
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: go-docs
+      #     path: go-docs.txt
