@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/MA-DOS/LowLevelMonitoring/compare/v1.0.4...v1.1.0) (2025-05-08)
+
+
+### Features
+
+* test go relese pipeline ([b13743b](https://github.com/MA-DOS/LowLevelMonitoring/commit/b13743b0fd935138a0c85c6d0a89bf24f1a4616d))
+
 ## [1.0.4](https://github.com/MA-DOS/LowLevelMonitoring/compare/v1.0.3...v1.0.4) (2025-05-08)
 
 
