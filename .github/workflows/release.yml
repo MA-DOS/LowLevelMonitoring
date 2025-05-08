@@ -15,12 +15,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run Semantic Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          npx semantic-release
-
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
@@ -45,7 +39,7 @@ jobs:
         run: go doc -all > go-docs.txt
 
       - name: Upload Go Docs to GitHub
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: go-docs
           path: go-docs.txt
