@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/client"
@@ -16,12 +17,13 @@ import (
 )
 
 type NextflowContainer struct {
-	StartTime   string `json:"start_time"`
-	DieTime     string `json:"die_time"`
-	Name        string `json:"name"`
-	PID         int    `json:"pid"`
-	ContainerID string `json:"container_id"`
-	WorkDir     string `json:"work_dir"`
+	StartTime   time.Time `json:"start_time"`
+	DieTime     time.Time `json:"die_time"`
+	Name        string    `json:"name"`
+	LifeTime    string    `json:"life_time"`
+	PID         int       `json:"pid"`
+	ContainerID string    `json:"container_id"`
+	WorkDir     string    `json:"work_dir"`
 }
 
 func (c *NextflowContainer) GetContainerEvents(containerEventChannel chan<- NextflowContainer) {
@@ -67,9 +69,20 @@ func (c *NextflowContainer) GetContainerEvents(containerEventChannel chan<- Next
 							if len(containerInfo.Name) > 0 && re.MatchString(containerInfo.Name) {
 								logrus.Infof("[STARTED] nextflow container: %s spawned...!\n", containerInfo.Name)
 								nextflowContainer := NextflowContainer{
-									StartTime:   containerInfo.State.StartedAt,
-									DieTime:     containerInfo.State.FinishedAt,
-									Name:        strings.TrimPrefix(containerInfo.Name, "/"),
+									StartTime: func() time.Time {
+										t, _ := time.Parse(time.RFC3339, containerInfo.State.StartedAt)
+										return t
+									}(),
+									DieTime: func() time.Time {
+										t, _ := time.Parse(time.RFC3339, containerInfo.State.FinishedAt)
+										return t
+									}(),
+									Name: strings.TrimPrefix(containerInfo.Name, "/"),
+									LifeTime: func() string {
+										startTime, _ := time.Parse(time.RFC3339, containerInfo.State.StartedAt)
+										dieTime, _ := time.Parse(time.RFC3339, containerInfo.State.FinishedAt)
+										return dieTime.Sub(startTime).String()
+									}(),
 									PID:         containerInfo.State.Pid,
 									ContainerID: containerInfo.ID,
 									WorkDir:     containerInfo.Config.WorkingDir,
@@ -104,9 +117,20 @@ func (c *NextflowContainer) GetContainerEvents(containerEventChannel chan<- Next
 								pidOfDiedContainer := containerPIDs[event.Actor.ID]
 								mu.Unlock()
 								nextflowContainer := NextflowContainer{
-									StartTime:   containerInfo.State.StartedAt,
-									DieTime:     containerInfo.State.FinishedAt,
-									Name:        strings.TrimPrefix(containerInfo.Name, "/"),
+									StartTime: func() time.Time {
+										t, _ := time.Parse(time.RFC3339, containerInfo.State.StartedAt)
+										return t
+									}(),
+									DieTime: func() time.Time {
+										t, _ := time.Parse(time.RFC3339, containerInfo.State.FinishedAt)
+										return t
+									}(),
+									Name: strings.TrimPrefix(containerInfo.Name, "/"),
+									LifeTime: func() string {
+										startTime, _ := time.Parse(time.RFC3339, containerInfo.State.StartedAt)
+										dieTime, _ := time.Parse(time.RFC3339, containerInfo.State.FinishedAt)
+										return dieTime.Sub(startTime).String()
+									}(),
 									PID:         pidOfDiedContainer,
 									ContainerID: containerInfo.ID,
 									WorkDir:     containerInfo.Config.WorkingDir,
