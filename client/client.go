@@ -14,9 +14,10 @@ import (
 
 // Configurations structures.
 type TargetServer struct {
-	Address       string `yaml:"address"`
-	Timeout       string `yaml:"timeout"`
-	FetchInterval int    `yaml:"interval"`
+	Address       string   `yaml:"address"`
+	Timeout       string   `yaml:"timeout"`
+	FetchInterval int      `yaml:"interval"`
+	Workers       []string `yaml:"workers"`
 }
 
 type Prometheus struct {

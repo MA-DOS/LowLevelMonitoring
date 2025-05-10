@@ -2,6 +2,7 @@ server_configurations:
   config_path: ~/dev/LowLevelMonitoring/config.yml
   prometheus:
     target_server:
+      workers: ["130.149.248.100", "130.149.248.105"]
       address: "http://130.149.248.100:9090"
       timeout: 10s
       interval: 1
