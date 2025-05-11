@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/MA-DOS/LowLevelMonitoring/client"
 	"github.com/sirupsen/logrus"
 )
@@ -14,10 +12,9 @@ func main() {
 	config, err := client.NewConfig(configFilePath)
 	if err != nil {
 		logrus.Error("Error reading config file: ", err)
-		fmt.Print(config)
 		return
 	}
 
 	// Start the monitoring loop.
-	client.ScheduleMonitoring(*config, configFilePath)
+	client.ScheduleMonitoring(config, configFilePath)
 }

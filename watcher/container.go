@@ -21,14 +21,15 @@ import (
 var re = regexp.MustCompile(`^/nxf-[a-zA-Z0-9-]+$`)
 
 type NextflowContainer struct {
-	WorkerIP    string    `json:"node"`
-	StartTime   time.Time `json:"start_time"`
-	DieTime     time.Time `json:"die_time"`
-	Name        string    `json:"name"`
-	LifeTime    string    `json:"life_time"`
-	PID         int       `json:"pid"`
-	ContainerID string    `json:"container_id"`
-	WorkDir     string    `json:"work_dir"`
+	WorkerIP       string    `json:"node"`
+	ContainerEvent string    `json:"event"`
+	StartTime      time.Time `json:"start_time"`
+	DieTime        time.Time `json:"die_time"`
+	Name           string    `json:"name"`
+	LifeTime       string    `json:"life_time"`
+	PID            int       `json:"pid"`
+	ContainerID    string    `json:"container_id"`
+	WorkDir        string    `json:"work_dir"`
 }
 
 // func RunDistributedWatcher() {}
