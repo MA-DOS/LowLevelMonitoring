@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/MA-DOS/LowLevelMonitoring/compare/v1.1.0...v1.2.0) (2025-05-11)
+
+
+### Features
+
+* integrated distributed container event listening and receiving ([187a875](https://github.com/MA-DOS/LowLevelMonitoring/commit/187a8759c3667d2def04c37f2f1d2bf29cd77279))
+
 # [1.1.0](https://github.com/MA-DOS/LowLevelMonitoring/compare/v1.0.4...v1.1.0) (2025-05-08)
 
 
