@@ -2,7 +2,7 @@ server_configurations:
   config_path: ~/dev/LowLevelMonitoring/config.yml
   prometheus:
     target_server:
-      controller: "127.0.0.1"
+      controller: "130.149.248.100"
       workers: ["130.149.248.105"]
       address: "http://130.149.248.100:9090"
       timeout: 10s
@@ -11,7 +11,7 @@ monitoring_targets:
   task_metadata:
     enabled: false
   cpu:
-    enabled: false
+    enabled: true
     data_sources:
       - source: docker-activity
         labels: [instance, container_name, container_id]
@@ -27,16 +27,8 @@ monitoring_targets:
             query: container_cpu_user_seconds_total
           - name: container_cpu_system_seconds_total
             query: container_cpu_system_seconds_total
-      - source: process-exporter
-        labels: [mode, instance, groupname]
-        identifier: groupname
-        metrics:
-          - name: namedprocess_namegroup_cpu_seconds_total
-            query: namedprocess_namegroup_cpu_seconds_total
-          - name: namedprocess_namegroup_thread_cpu_seconds_total
-            query: namedprocess_namegroup_thread_cpu_seconds_total
   memory:
-    enabled: false
+    enabled: true
     data_sources:
       - source: cAdvisor
         labels: [name, id, image, job]
@@ -45,7 +37,7 @@ monitoring_targets:
           - name: container_memory_usage_bytes
             query: container_memory_usage_bytes
           - name: container_memory_failures_total
-            query: container_memory_failures_total)
+            query: container_memory_failures_total
           - name: container_memory_rss
             query: container_memory_rss
           - name: container_memory_working_set_bytes
@@ -57,16 +49,8 @@ monitoring_targets:
           - name: memoryUsage
             query: memoryUsage
   disk:
-    enabled: false
+    enabled: true
     data_sources:
-      - source: process-exporter
-        labels: [mode, instance, groupname]
-        identifier: groupname
-        metrics:
-          - name: namedprocess_read_bytes_total
-            query: namedprocess_read_bytes_total
-          - name: namedprocess_write_bytes_total
-            query: namedprocess_write_bytes_total
       - source: cAdvisor
         labels: [name, id, image, job]
         identifier: name
@@ -88,7 +72,7 @@ monitoring_targets:
           - name: container_fs_writes_bytes_total
             query: container_fs_writes_bytes_total
   network:
-    enabled: false
+    enabled: true
     data_sources:
       - source: cAdvisor
         labels: [name, id, image, job]
@@ -105,7 +89,7 @@ monitoring_targets:
           - name: container_network_transmit_errors_total
             query: container_network_transmit_errors_total
   energy:
-    enabled: false
+    enabled: true
     data_sources:
       - source: docker-activity
         labels: [instance, container_name, container_id]

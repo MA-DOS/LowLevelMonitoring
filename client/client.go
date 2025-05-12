@@ -165,10 +165,12 @@ func HandleIncomingContainerEvents(con net.Conn, containerEventChannel chan<- wa
 	switch container.ContainerEvent {
 	case "start":
 		logrus.Infof("[REMOTE START EVENT] Writing container %s to output.", container.Name)
-		watcher.WriteToOutput(container) // Write the container data to output.
+		// watcher.WriteToOutput(container) // Write the container data to output.
+		watcher.WriteStartedToOutput(container) // Write the container data to output.
 	case "die":
 		logrus.Infof("[REMOTE DIE EVENT] Forwarding container %s to monitoring logic.", container.Name)
 		containerEventChannel <- container // Forward the container event to the monitoring logic.
+		watcher.WriteDiedToOutput(container) // Write the container data to output.
 	default:
 		logrus.Warnf("[UNKNOWN EVENT] Received unknown event type for container: %s", container.Name)
 	}

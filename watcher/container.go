@@ -105,9 +105,10 @@ func processContainerEvent(event events.Message, apiClient *client.Client, re *r
 				mu.Lock()
 				containerPIDs[event.Actor.ID] = pid
 				mu.Unlock()
-				WriteToOutput(nextflowContainer)
+				WriteStartedToOutput(nextflowContainer)
 			} else {
 				containerEventChannel <- nextflowContainer
+				WriteDiedToOutput(nextflowContainer)
 			}
 		}
 	}()
@@ -135,8 +136,43 @@ func createNextflowContainer(containerInfo types.ContainerJSON, pid int) Nextflo
 	}
 }
 
-func WriteToOutput(container NextflowContainer) {
-	fullPath := prepareOutputFile("results", "nextflow_containers.csv")
+func WriteStartedToOutput(container NextflowContainer) {
+	fullPath := prepareOutputFile("results", "started_nextflow_containers.csv")
+	if fullPath == "" {
+		return
+	}
+
+	file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		logrus.Error("Error opening file: ", err)
+		return
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	// Write CSV header if the file is empty
+	if isFileEmpty(file) {
+		if err := writer.Write([]string{"Name", "PID", "ContainerID", "WorkDir"}); err != nil {
+			logrus.Error("Error writing CSV header: ", err)
+			return
+		}
+	}
+
+	// Write container data to CSV
+	if err := writer.Write([]string{
+		container.Name,
+		fmt.Sprintf("%d", container.PID),
+		container.ContainerID,
+		container.WorkDir,
+	}); err != nil {
+		logrus.Error("Error writing container data to CSV: ", err)
+	}
+}
+
+func WriteDiedToOutput(container NextflowContainer) {
+	fullPath := prepareOutputFile("results", "died_nextflow_containers.csv")
 	if fullPath == "" {
 		return
 	}
