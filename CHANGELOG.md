@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/MA-DOS/LowLevelMonitoring/compare/v1.2.0...v1.2.1) (2025-05-17)
+
+
+### Bug Fixes
+
+* retrieve all container pids from remote agent ([e7ffea6](https://github.com/MA-DOS/LowLevelMonitoring/commit/e7ffea635e77e0dcfdbc7089825fe2f5e1476a0d))
+
 # [1.2.0](https://github.com/MA-DOS/LowLevelMonitoring/compare/v1.1.0...v1.2.0) (2025-05-11)
 
 
