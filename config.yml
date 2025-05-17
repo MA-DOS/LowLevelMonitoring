@@ -9,7 +9,14 @@ server_configurations:
       interval: 1
 monitoring_targets:
   task_metadata:
-    enabled: false
+    enabled: true
+    data_sources:
+      - source: slurm-job-exporter
+        labels: [job_name, job_id, instance, node, work_dir, job_state]
+        identifier: work_dir
+        metrics:
+          - name: slurm_job_id
+            query: slurm_job_id
   cpu:
     enabled: true
     data_sources:
@@ -27,6 +34,12 @@ monitoring_targets:
             query: container_cpu_user_seconds_total
           - name: container_cpu_system_seconds_total
             query: container_cpu_system_seconds_total
+      - source: process-exporter
+        labels: [groupname]
+        identifier: groupname
+        metrics:
+          - name: namedprocess_namegroup_cpu_seconds_total
+            query: namedprocess_namegroup_cpu_seconds_total
   memory:
     enabled: true
     data_sources:

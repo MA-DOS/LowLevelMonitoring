@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"log"
 	"os"
 	"regexp"
 	"strings"
@@ -81,7 +80,7 @@ func processContainerEvent(event events.Message, apiClient *client.Client, re *r
 	go func() {
 		containerInfo, err := apiClient.ContainerInspect(context.Background(), event.Actor.ID)
 		if err != nil {
-			log.Printf("Error inspecting container %s: %v", event.Actor.ID, err)
+			logrus.Printf("Error inspecting container %s: %v", event.Actor.ID, err)
 			return
 		}
 
@@ -91,11 +90,13 @@ func processContainerEvent(event events.Message, apiClient *client.Client, re *r
 				eventType = "[DIED]"
 			}
 			logrus.Infof("%s nextflow container: %s\n", eventType, containerInfo.Name)
-
 			pid := containerInfo.State.Pid
 			if !isStartEvent {
 				mu.Lock()
 				pid = containerPIDs[event.Actor.ID]
+				if pid == 0 {
+					logrus.Exit(1)
+				}
 				mu.Unlock()
 			}
 
@@ -107,6 +108,12 @@ func processContainerEvent(event events.Message, apiClient *client.Client, re *r
 				mu.Unlock()
 				WriteStartedToOutput(nextflowContainer)
 			} else {
+				mu.Lock()
+				pid = containerPIDs[event.Actor.ID]
+				if pid == 0 {
+					logrus.Exit(1)
+				}
+				mu.Unlock()
 				containerEventChannel <- nextflowContainer
 				WriteDiedToOutput(nextflowContainer)
 			}

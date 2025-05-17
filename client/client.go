@@ -146,7 +146,6 @@ func HandleIncomingContainerEvents(con net.Conn, containerEventChannel chan<- wa
 
 	// Read the incoming data from the connection.
 	buffer := make([]byte, 1024)
-	logrus.Info("[CONTAINER EVENT] Listening for container events...")
 	n, err := con.Read(buffer)
 	if err != nil {
 		logrus.Error("Error reading from connection: ", err)
@@ -163,16 +162,14 @@ func HandleIncomingContainerEvents(con net.Conn, containerEventChannel chan<- wa
 
 	// Handle the event based on its type.
 	switch container.ContainerEvent {
-	case "start":
+	case "[STARTED]":
 		logrus.Infof("[REMOTE START EVENT] Writing container %s to output.", container.Name)
 		// watcher.WriteToOutput(container) // Write the container data to output.
 		watcher.WriteStartedToOutput(container) // Write the container data to output.
-	case "die":
-		logrus.Infof("[REMOTE DIE EVENT] Forwarding container %s to monitoring logic.", container.Name)
-		containerEventChannel <- container // Forward the container event to the monitoring logic.
+	case "[DIED]":
+		logrus.Info("[REMOTE DIE EVENT] Writing container to output and monitoring channel.", container)
+		containerEventChannel <- container   // Forward the container event to the monitoring logic.
 		watcher.WriteDiedToOutput(container) // Write the container data to output.
-	default:
-		logrus.Warnf("[UNKNOWN EVENT] Received unknown event type for container: %s", container.Name)
 	}
 }
 
@@ -218,7 +215,7 @@ func ScheduleMonitoring(config *Config, configPath string) {
 }
 
 func ProcessContainerEvent(config *Config, configPath string, workflowContainer watcher.NextflowContainer) {
-	logrus.Infof("[RECEIVED DEAD CONTAINER] Container Name coming from channel: %s who lived for %v.", workflowContainer.Name, workflowContainer.LifeTime)
+	logrus.Infof("[RECEIVED DEAD CONTAINER] Container Name coming from channel: %s who lived for %v and has PID %v.", workflowContainer.Name, workflowContainer.LifeTime, workflowContainer.PID)
 
 	// Run the Monitor against Prometheus.
 	resultMap, queryMetaInfo, err := StartMonitoring(config, configPath, workflowContainer)
