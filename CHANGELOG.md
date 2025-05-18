@@ -1,3 +1,10 @@
+## [1.2.2](https://github.com/MA-DOS/LowLevelMonitoring/compare/v1.2.1...v1.2.2) (2025-05-18)
+
+
+### Bug Fixes
+
+* handle sbatch step death gracefully in container pid logic ([dc54b56](https://github.com/MA-DOS/LowLevelMonitoring/commit/dc54b56d6e7b551a580124077443ea3a8078c1c3))
+
 ## [1.2.1](https://github.com/MA-DOS/LowLevelMonitoring/compare/v1.2.0...v1.2.1) (2025-05-17)
 
 
