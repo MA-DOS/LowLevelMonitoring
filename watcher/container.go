@@ -95,7 +95,8 @@ func processContainerEvent(event events.Message, apiClient *client.Client, re *r
 				mu.Lock()
 				pid = containerPIDs[event.Actor.ID]
 				if pid == 0 {
-					logrus.Exit(1)
+					logrus.Warn("Container Process interrupted, PID not found")
+					return
 				}
 				mu.Unlock()
 			}
@@ -111,7 +112,8 @@ func processContainerEvent(event events.Message, apiClient *client.Client, re *r
 				mu.Lock()
 				pid = containerPIDs[event.Actor.ID]
 				if pid == 0 {
-					logrus.Exit(1)
+					logrus.Warn("Container Process interrupted, PID not found")
+					return
 				}
 				mu.Unlock()
 				containerEventChannel <- nextflowContainer
