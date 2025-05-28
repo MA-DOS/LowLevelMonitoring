@@ -34,12 +34,6 @@ monitoring_targets:
             query: container_cpu_user_seconds_total
           - name: container_cpu_system_seconds_total
             query: container_cpu_system_seconds_total
-      - source: process-exporter
-        labels: [groupname]
-        identifier: groupname
-        metrics:
-          - name: namedprocess_namegroup_cpu_seconds_total
-            query: namedprocess_namegroup_cpu_seconds_total
   memory:
     enabled: true
     data_sources:
