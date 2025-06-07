@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/MA-DOS/LowLevelMonitoring/compare/v1.2.2...v1.3.0) (2025-06-07)
+
+
+### Features
+
+* added config based csv headers and docker stats time series output ([fce7f25](https://github.com/MA-DOS/LowLevelMonitoring/commit/fce7f2556ed3324d43db7db55f97e31bbb5d16de))
+
 ## [1.2.2](https://github.com/MA-DOS/LowLevelMonitoring/compare/v1.2.1...v1.2.2) (2025-05-18)
 
 
