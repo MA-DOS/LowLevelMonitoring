@@ -43,7 +43,6 @@ monitoring_targets:
         metrics:
           - name: container_memory_usage_bytes
             query: container_memory_usage_bytes
-            query: container_memory_working_set_bytes
       - source: docker-activity
         labels: [container_id, container_name,instance]
         identifier: container_name
