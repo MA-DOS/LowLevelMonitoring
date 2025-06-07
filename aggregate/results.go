@@ -81,8 +81,13 @@ func (v *DataVectorWrapper) WriteToCSV(dataSource string, QueryMetaInfo map[stri
 	if err != nil {
 		return err
 	}
+	// if fileInfo.Size() == 0 {
+	// 	if err := w.Write(ReadHeaderFields(metricLabels)); err != nil {
+	// 		return err
+	// 	}
+	// }
 	if fileInfo.Size() == 0 {
-		if err := w.Write(ReadHeaderFields(metricLabels)); err != nil {
+		if err := w.Write(ReadHeaderFields(dataSource, QueryMetaInfo)); err != nil {
 			return err
 		}
 	}
@@ -163,17 +168,42 @@ func GetFileName(targetFolder, fileIdentifier string) string {
 	return fmt.Sprintf("%s/%s.csv", targetFolder, fileIdentifier)
 }
 
-func ReadHeaderFields(labelNames model.LabelSet) []string {
+// func ReadHeaderFields(labelNames model.LabelSet) []string {
+// 	// Check the current amount of fields in the header and check if it differs from the labelNames.
+// 	// If it does, then we need to update the header.
+// 	header := []string{"timestamp", "value"}
+// 	keys := make([]string, 0, len(labelNames))
+// 	for key := range labelNames {
+// 		keys = append(keys, string(key))
+// 	}
+// 	sort.Strings(keys)
+// 	header = append(header, keys...)
+// 	return header
+// }
+
+// Don't read header fields from model.LabelSet but from the config file.
+func ReadHeaderFields(dataSource string, QueryMetaInfo map[string][]string) []string {
 	// Check the current amount of fields in the header and check if it differs from the labelNames.
 	// If it does, then we need to update the header.
 	header := []string{"timestamp", "value"}
-	keys := make([]string, 0, len(labelNames))
-	for key := range labelNames {
-		keys = append(keys, string(key))
+	if fields, ok := QueryMetaInfo[dataSource]; ok {
+		header = append(header, fields...)
 	}
-	sort.Strings(keys)
-	header = append(header, keys...)
 	return header
+	// fieldSet := make(map[string]struct{})
+
+	// for _, fields := range QueryMetaInfo {
+	// 	for _, field := range fields {
+	// 		fieldSet[field] = struct{}{}
+	// 	}
+	// }
+	// keys := make([]string, 0, len(fieldSet))
+	// for field := range fieldSet {
+	// 	keys = append(keys, field)
+	// }
+	// sort.Strings(keys)
+	// header = append(header, keys...)
+	// return header
 }
 
 func ReadLabelValues(dataSource string, QueryMetaInfo map[string][]string, labelValues model.LabelSet, timestamp string, value float64) []string {

@@ -12,7 +12,7 @@ monitoring_targets:
     enabled: true
     data_sources:
       - source: slurm-job-exporter
-        labels: [job_name, job_id, instance, node, work_dir, job_state]
+        labels: [instance,job_name,job_state,node,work_dir]
         identifier: work_dir
         metrics:
           - name: slurm_job_id
@@ -21,13 +21,13 @@ monitoring_targets:
     enabled: true
     data_sources:
       - source: docker-activity
-        labels: [instance, container_name, container_id]
+        labels: [container_id, container_name,instance]
         identifier: container_name
         metrics:
           - name: cpuPercent
             query: cpuPercent
       - source: cAdvisor
-        labels: [name, id, image, job]
+        labels: [id, image, job,name]
         identifier: name
         metrics:
           - name: container_cpu_user_seconds_total
@@ -38,19 +38,14 @@ monitoring_targets:
     enabled: true
     data_sources:
       - source: cAdvisor
-        labels: [name, id, image, job]
+        labels: [id, image, job,name]
         identifier: name
         metrics:
           - name: container_memory_usage_bytes
             query: container_memory_usage_bytes
-          - name: container_memory_failures_total
-            query: container_memory_failures_total
-          - name: container_memory_rss
-            query: container_memory_rss
-          - name: container_memory_working_set_bytes
             query: container_memory_working_set_bytes
       - source: docker-activity
-        labels: [instance, container_name, container_id]
+        labels: [container_id, container_name,instance]
         identifier: container_name
         metrics:
           - name: memoryUsage
@@ -59,21 +54,13 @@ monitoring_targets:
     enabled: true
     data_sources:
       - source: cAdvisor
-        labels: [name, id, image, job]
+        labels: [id, image, job,name]
         identifier: name
         metrics:
           - name: container_blkio_device_usage_total
             query: container_blkio_device_usage_total
           - name: container_fs_io_current
             query: container_fs_io_current
-          - name: container_fs_io_time_seconds_total
-            query: container_fs_io_time_seconds_total
-          - name: container_fs_io_time_weighted_seconds_total
-            query: container_fs_io_time_weighted_seconds_total
-          - name: container_fs_writes_total
-            query: container_fs_writes_total
-          - name: container_fs_reads_total
-            query: container_fs_reads_total
           - name: container_fs_reads_bytes_total
             query: container_fs_reads_bytes_total
           - name: container_fs_writes_bytes_total
@@ -82,24 +69,18 @@ monitoring_targets:
     enabled: true
     data_sources:
       - source: cAdvisor
-        labels: [name, id, image, job]
+        labels: [id, image, job,name]
         identifier: name
         metrics:
           - name: container_network_receive_bytes_total
             query: container_network_receive_bytes_total
-          - name: container_network_receive_packets_dropped_total
-            query: container_network_receive_packets_dropped_total
-          - name: container_network_receive_packets_total
-            query: container_network_receive_packets_total
           - name: container_network_transmit_bytes_total
             query: container_network_transmit_bytes_total
-          - name: container_network_transmit_errors_total
-            query: container_network_transmit_errors_total
   energy:
     enabled: true
     data_sources:
       - source: docker-activity
-        labels: [instance, container_name, container_id]
+        labels: [container_id, container_name,instance]
         identifier: container_name
         metrics:
           - name: energyUsage

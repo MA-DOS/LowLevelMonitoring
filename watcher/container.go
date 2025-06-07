@@ -3,7 +3,9 @@ package watcher
 import (
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/client"
 	"github.com/sirupsen/logrus"
@@ -31,12 +34,9 @@ type NextflowContainer struct {
 	WorkDir        string    `json:"work_dir"`
 }
 
-// func RunDistributedWatcher() {}
-
 func (c *NextflowContainer) GetContainerEvents(containerEventChannel chan<- NextflowContainer) {
-
 	// Container Client.
-	apiClient, err := client.NewClientWithOpts(client.FromEnv)
+	apiClient, err := client.NewClientWithOpts(client.FromEnv, client.WithVersion("1.49"))
 	if err != nil {
 		panic(err)
 	}
@@ -48,6 +48,7 @@ func (c *NextflowContainer) GetContainerEvents(containerEventChannel chan<- Next
 	processedDies := make(map[string]bool)   // Track died containers
 	containerPIDs := make(map[string]int)    // Track container PIDs
 	var mu sync.Mutex
+	wg := sync.WaitGroup{}
 
 	go func() {
 		for {
@@ -56,19 +57,22 @@ func (c *NextflowContainer) GetContainerEvents(containerEventChannel chan<- Next
 				if event.Type == events.ContainerEventType {
 					switch event.Action {
 					case "start":
-						processContainerEvent(event, apiClient, re, &mu, processedStarts, containerPIDs, containerEventChannel, true)
+						processContainerEvent(event, apiClient, re, &mu, processedStarts, containerPIDs, containerEventChannel, true, &wg)
 					case "die":
-						processContainerEvent(event, apiClient, re, &mu, processedDies, containerPIDs, containerEventChannel, false)
+						processContainerEvent(event, apiClient, re, &mu, processedDies, containerPIDs, containerEventChannel, false, &wg)
 					}
 				}
 			case err := <-errChan:
-				logrus.Error("Error while watching for events: ", err)
+				if err != nil {
+					logrus.Error("Error while watching for events: ", err)
+				}
 			}
 		}
 	}()
+	wg.Wait()
 }
 
-func processContainerEvent(event events.Message, apiClient *client.Client, re *regexp.Regexp, mu *sync.Mutex, processed map[string]bool, containerPIDs map[string]int, containerEventChannel chan<- NextflowContainer, isStartEvent bool) {
+func processContainerEvent(event events.Message, apiClient *client.Client, re *regexp.Regexp, mu *sync.Mutex, processed map[string]bool, containerPIDs map[string]int, containerEventChannel chan<- NextflowContainer, isStartEvent bool, wg *sync.WaitGroup) {
 	mu.Lock()
 	if processed[event.Actor.ID] {
 		mu.Unlock()
@@ -78,6 +82,7 @@ func processContainerEvent(event events.Message, apiClient *client.Client, re *r
 	mu.Unlock()
 
 	go func() {
+		// Get container metadata for prometheus queries.
 		containerInfo, err := apiClient.ContainerInspect(context.Background(), event.Actor.ID)
 		if err != nil {
 			logrus.Printf("Error inspecting container %s: %v", event.Actor.ID, err)
@@ -91,6 +96,18 @@ func processContainerEvent(event events.Message, apiClient *client.Client, re *r
 			}
 			logrus.Infof("%s nextflow container: %s\n", eventType, containerInfo.Name)
 			pid := containerInfo.State.Pid
+
+			// wg.Add(1)
+			// go func() {
+			// 	defer wg.Done()
+			// 	getContainerStats(apiClient, containerInfo.ID, containerInfo.Name)
+			// }()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				getContainerStatsManual(apiClient, containerInfo.ID, containerInfo.Name)
+			}()
+
 			if !isStartEvent {
 				mu.Lock()
 				pid = containerPIDs[event.Actor.ID]
@@ -121,6 +138,86 @@ func processContainerEvent(event events.Message, apiClient *client.Client, re *r
 			}
 		}
 	}()
+}
+
+func getContainerStats(apiClient *client.Client, containerID, containerName string) {
+	ctx := context.Background()
+	containerStats, err := apiClient.ContainerStats(ctx, containerID, true)
+	if err != nil {
+		logrus.Errorf("Error inspecting container %s: %v", containerID, err)
+		return
+	}
+	defer containerStats.Body.Close()
+
+	if _, err := os.Stat("results"); os.IsNotExist(err) {
+		logrus.Errorf("Results directory does not exist, not writing stats for %s", containerName)
+		return
+	}
+	statsFileName := fmt.Sprintf("results/%s.json", containerName)
+	// statsFile, err := os.Create(statsFileName)
+	statsFile, err := os.OpenFile(statsFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		logrus.Errorf("Error creating stats file: %v", err)
+	} else {
+		defer statsFile.Close()
+		decoder := json.NewDecoder(containerStats.Body)
+		encoder := json.NewEncoder(statsFile)
+
+		for {
+			var stats container.StatsResponse
+			if err := decoder.Decode(&stats); err != nil {
+				if err == io.EOF {
+					break
+				}
+				logrus.Errorf("Error decoding container stats: %v", err)
+				break
+			}
+			if err := encoder.Encode(stats); err != nil {
+				logrus.Errorf("Error writing stats to file: %v", err)
+				break
+			}
+		}
+	}
+	containerStats.Body.Close()
+}
+
+func getContainerStatsManual(apiClient *client.Client, containerID, containerName string) {
+	ctx := context.Background()
+	statsFileName := fmt.Sprintf("results/%s.json", containerName)
+	statsFile, err := os.OpenFile(statsFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		logrus.Errorf("Error creating stats file: %v", err)
+		return
+	}
+	defer statsFile.Close()
+	encoder := json.NewEncoder(statsFile)
+
+	for {
+		containerStats, err := apiClient.ContainerStats(ctx, containerID, false)
+		if err != nil {
+			logrus.Errorf("Error inspecting container %s: %v", containerID, err)
+			break
+		}
+		var stats container.StatsResponse
+		decoder := json.NewDecoder(containerStats.Body)
+		if err := decoder.Decode(&stats); err != nil {
+			containerStats.Body.Close()
+			logrus.Errorf("Error decoding container stats: %v", err)
+			break
+		}
+		containerStats.Body.Close()
+		if err := encoder.Encode(stats); err != nil {
+			logrus.Errorf("Error writing stats to file: %v", err)
+			break
+		}
+
+		// Check if container is still running
+		inspect, err := apiClient.ContainerInspect(ctx, containerID)
+		if err != nil || !inspect.State.Running {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
 }
 
 func createNextflowContainer(containerInfo types.ContainerJSON, pid int) NextflowContainer {
@@ -198,7 +295,7 @@ func WriteDiedToOutput(container NextflowContainer) {
 
 	// Write CSV header if the file is empty
 	if isFileEmpty(file) {
-		if err := writer.Write([]string{"Name", "PID", "ContainerID", "WorkDir"}); err != nil {
+		if err := writer.Write([]string{"Name", "PID", "ContainerID", "WorkDir", "LifeTime"}); err != nil {
 			logrus.Error("Error writing CSV header: ", err)
 			return
 		}
@@ -210,6 +307,7 @@ func WriteDiedToOutput(container NextflowContainer) {
 		fmt.Sprintf("%d", container.PID),
 		container.ContainerID,
 		container.WorkDir,
+		container.LifeTime,
 	}); err != nil {
 		logrus.Error("Error writing container data to CSV: ", err)
 	}

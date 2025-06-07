@@ -42,6 +42,12 @@ func FetchMonitoringTargets(client api.Client, queryIdentifier, query string, wo
 	if !ok {
 		return nil, fmt.Errorf("failed to cast Prometheus response to Matrix")
 	}
+	if len(resultMatrix) == 0 {
+		logrus.Warnf("Prometheus query returned no results for query: %s", jobQuery)
+	}
+	if !ok {
+		return nil, fmt.Errorf("failed to cast Prometheus response to Matrix")
+	}
 
 	return resultMatrix, nil
 }
