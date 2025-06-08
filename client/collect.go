@@ -53,9 +53,10 @@ func FetchMonitoringTargets(client api.Client, queryIdentifier, query string, wo
 }
 
 // Function to take in client configuration and queries to fetch monitoring targets in a thread.
-func FetchMonitoringSources(c *Config, workflowContainer watcher.NextflowContainer, queriesMap map[string]map[string][]tuple.T4[string, string, []string, string]) (map[string]map[string]map[string]model.Matrix, map[string][]string, error) {
+func FetchMonitoringSources(c *Config, workflowContainer watcher.NextflowContainer, queriesMap map[string]map[string][]tuple.T5[string, string, []string, string, string]) (map[string]map[string]map[string]model.Matrix, map[string][]string, map[string]map[string]string, error) {
 	resultsWithCategories := make(map[string]map[string]map[string]model.Matrix)
 	queryMetaInfo := make(map[string][]string)
+	queryUnitInfo := make(map[string]map[string]string)
 
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -65,6 +66,12 @@ func FetchMonitoringSources(c *Config, workflowContainer watcher.NextflowContain
 			if len(queryList) > 0 {
 
 				queryMetaInfo[dataSource] = queryList[0].V3
+				if _, ok := queryUnitInfo[dataSource]; !ok {
+					queryUnitInfo[dataSource] = make(map[string]string)
+				}
+				for _, query := range queryList {
+					queryUnitInfo[dataSource][query.V1] = query.V5
+				}
 			}
 			for _, query := range queryList {
 				wg.Add(1)
@@ -75,10 +82,10 @@ func FetchMonitoringSources(c *Config, workflowContainer watcher.NextflowContain
 		}
 	}
 	wg.Wait()
-	return resultsWithCategories, queryMetaInfo, nil
+	return resultsWithCategories, queryMetaInfo, queryUnitInfo, nil
 }
 
-func fetchQuery(c *Config, target, dataSource, queryIdentifier string, query tuple.T4[string, string, []string, string], workflowContainer watcher.NextflowContainer, mapTargetSourceName map[string]map[string]map[string]model.Matrix, mu *sync.Mutex, wg *sync.WaitGroup) {
+func fetchQuery(c *Config, target, dataSource, queryIdentifier string, query tuple.T5[string, string, []string, string, string], workflowContainer watcher.NextflowContainer, mapTargetSourceName map[string]map[string]map[string]model.Matrix, mu *sync.Mutex, wg *sync.WaitGroup) {
 	defer wg.Done()
 	client, err := NewFetchClient(c)
 	if err != nil {

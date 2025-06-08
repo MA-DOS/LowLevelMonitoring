@@ -61,6 +61,7 @@ type DataSource struct {
 type Metric struct {
 	Name  string `yaml:"name"`
 	Query string `yaml:"query"`
+	Unit  string `yaml:"unit"`
 }
 
 // LoadConfig loads the configuration from the file and returns implicit the prometheus configuration.
@@ -179,15 +180,15 @@ func WatchContainerEvents(containerEventChannel chan<- watcher.NextflowContainer
 }
 
 // Refactor to pass a nxf container object
-func StartMonitoring(c *Config, cfp string, workflowContainer watcher.NextflowContainer) (map[string]map[string]map[string]model.Matrix, map[string][]string, error) {
+func StartMonitoring(c *Config, cfp string, workflowContainer watcher.NextflowContainer) (map[string]map[string]map[string]model.Matrix, map[string][]string, map[string]map[string]string, error) {
 	queriesMap := ConsolidateQueries(ReadMonitoringConfiguration(cfp)) // Ignore labels
 
-	resultMap, QueryMetaInfo, err := FetchMonitoringSources(c, workflowContainer, queriesMap)
+	resultMap, QueryMetaInfo, QueryUnitInfo, err := FetchMonitoringSources(c, workflowContainer, queriesMap)
 	if err != nil {
 		logrus.Error("Error fetching queries: ", err)
-		return resultMap, QueryMetaInfo, err
+		return resultMap, QueryMetaInfo, QueryUnitInfo, err
 	}
-	return resultMap, QueryMetaInfo, err
+	return resultMap, QueryMetaInfo, QueryUnitInfo, err
 }
 
 func ScheduleMonitoring(config *Config, configPath string) {
@@ -218,11 +219,12 @@ func ProcessContainerEvent(config *Config, configPath string, workflowContainer 
 	logrus.Infof("[RECEIVED DEAD CONTAINER] Container Name coming from channel: %s who lived for %v and has PID %v.", workflowContainer.Name, workflowContainer.LifeTime, workflowContainer.PID)
 
 	// Run the Monitor against Prometheus.
-	resultMap, queryMetaInfo, err := StartMonitoring(config, configPath, workflowContainer)
+	resultMap, queryMetaInfo, queryUnitInfo, err := StartMonitoring(config, configPath, workflowContainer)
 	if err != nil {
 		logrus.Error("Error starting monitoring: ", err)
 		panic(err)
 	}
+	logrus.Infof("Units: %v", queryUnitInfo)
 
 	// Process results.
 	for target, dataSources := range resultMap {
@@ -234,7 +236,7 @@ func ProcessContainerEvent(config *Config, configPath string, workflowContainer 
 							queryName: samples,
 						},
 					},
-				}, queryMetaInfo)
+				}, queryMetaInfo, queryUnitInfo)
 				if err := dataWrapper.CreateDataOutput(); err != nil {
 					logrus.Error("Error creating output: ", err)
 				}

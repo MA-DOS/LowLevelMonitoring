@@ -14,13 +14,15 @@ type DataVectorWrapper struct {
 	Result        model.Vector                                  // Needed only for slurm_job_id metadata
 	ResultMap     map[string]map[string]map[string]model.Matrix // Holds the map according to the config structure
 	QueryMetaInfo map[string][]string
+	QueryUnits    map[string]map[string]string
 	// mu        sync.Mutex
 }
 
-func NewDataVectorWrapper(m map[string]map[string]map[string]model.Matrix, qmi map[string][]string) *DataVectorWrapper {
+func NewDataVectorWrapper(m map[string]map[string]map[string]model.Matrix, qmi map[string][]string, qu map[string]map[string]string) *DataVectorWrapper {
 	return &DataVectorWrapper{
 		ResultMap:     m,
 		QueryMetaInfo: qmi,
+		QueryUnits:    qu,
 	}
 }
 
@@ -54,6 +56,13 @@ func CreateMonitoringOutput(v *DataVectorWrapper) error {
 				CreateOutputFolder(queryFolder)
 
 				queryFile := CreateFile(queryFolder, queryName+".csv")
+				var unit string
+				if v.QueryUnits != nil {
+					if unitsForSource, ok := v.QueryUnits[dataSource]; ok {
+						unit = unitsForSource[queryName]
+						fmt.Printf("Unit for %s/%s: %s\n", dataSource, queryName, unit)
+					}
+				}
 
 				for _, sample := range samples {
 					for _, pair := range sample.Values {
@@ -62,7 +71,7 @@ func CreateMonitoringOutput(v *DataVectorWrapper) error {
 						// logrus.Infof("Writing Sample - Timestamp: %s, ID: %s, Value: %f",
 						// timestamp, sample.Metric["id"], float64(pair.Value))
 
-						v.WriteToCSV(dataSource, v.QueryMetaInfo, queryFolder, queryFile, timestamp, model.LabelSet(sample.Metric), float64(pair.Value))
+						v.WriteToCSV(dataSource, v.QueryMetaInfo, queryFolder, queryFile, timestamp, model.LabelSet(sample.Metric), float64(pair.Value), unit)
 						// logrus.Info("[QUERY Labels]: ", v.QueryMetaInfo)
 					}
 				}
@@ -72,7 +81,7 @@ func CreateMonitoringOutput(v *DataVectorWrapper) error {
 	return nil
 }
 
-func (v *DataVectorWrapper) WriteToCSV(dataSource string, QueryMetaInfo map[string][]string, folder string, outputFile *os.File, timestamp string, metricLabels model.LabelSet, value float64) error {
+func (v *DataVectorWrapper) WriteToCSV(dataSource string, QueryMetaInfo map[string][]string, folder string, outputFile *os.File, timestamp string, metricLabels model.LabelSet, value float64, unit string) error {
 	w := csv.NewWriter(outputFile)
 	w.Comma = ','
 	defer w.Flush()
@@ -87,7 +96,7 @@ func (v *DataVectorWrapper) WriteToCSV(dataSource string, QueryMetaInfo map[stri
 	// 	}
 	// }
 	if fileInfo.Size() == 0 {
-		if err := w.Write(ReadHeaderFields(dataSource, QueryMetaInfo)); err != nil {
+		if err := w.Write(ReadHeaderFields(dataSource, QueryMetaInfo, unit)); err != nil {
 			return err
 		}
 	}
@@ -182,10 +191,14 @@ func GetFileName(targetFolder, fileIdentifier string) string {
 // }
 
 // Don't read header fields from model.LabelSet but from the config file.
-func ReadHeaderFields(dataSource string, QueryMetaInfo map[string][]string) []string {
+func ReadHeaderFields(dataSource string, QueryMetaInfo map[string][]string, unit string) []string {
 	// Check the current amount of fields in the header and check if it differs from the labelNames.
 	// If it does, then we need to update the header.
-	header := []string{"timestamp", "value"}
+	valueWithUnit := fmt.Sprint("Value (", unit, ")")
+	header := []string{"timestamp", valueWithUnit}
+	if unit == "" {
+		valueWithUnit = "Value"
+	}
 	if fields, ok := QueryMetaInfo[dataSource]; ok {
 		header = append(header, fields...)
 	}

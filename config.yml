@@ -12,28 +12,22 @@ monitoring_targets:
     enabled: true
     data_sources:
       - source: slurm-job-exporter
-        labels: [instance,job_name,job_state,node,work_dir]
+        labels: [instance,job_name,job_state,node,run_time,work_dir]
         identifier: work_dir
         metrics:
           - name: slurm_job_id
             query: slurm_job_id
+            unit: ""
   cpu:
     enabled: true
     data_sources:
-      - source: docker-activity
-        labels: [container_id, container_name,instance]
-        identifier: container_name
-        metrics:
-          - name: cpuPercent
-            query: cpuPercent
       - source: cAdvisor
         labels: [id, image, job,name]
         identifier: name
         metrics:
           - name: container_cpu_user_seconds_total
             query: container_cpu_user_seconds_total
-          - name: container_cpu_system_seconds_total
-            query: container_cpu_system_seconds_total
+            unit: seconds
   memory:
     enabled: true
     data_sources:
@@ -43,12 +37,7 @@ monitoring_targets:
         metrics:
           - name: container_memory_usage_bytes
             query: container_memory_usage_bytes
-      - source: docker-activity
-        labels: [container_id, container_name,instance]
-        identifier: container_name
-        metrics:
-          - name: memoryUsage
-            query: memoryUsage
+            unit: bytes
   disk:
     enabled: true
     data_sources:
@@ -58,12 +47,7 @@ monitoring_targets:
         metrics:
           - name: container_blkio_device_usage_total
             query: container_blkio_device_usage_total
-          - name: container_fs_io_current
-            query: container_fs_io_current
-          - name: container_fs_reads_bytes_total
-            query: container_fs_reads_bytes_total
-          - name: container_fs_writes_bytes_total
-            query: container_fs_writes_bytes_total
+            unit: bytes
   network:
     enabled: true
     data_sources:
@@ -71,10 +55,9 @@ monitoring_targets:
         labels: [id, image, job,name]
         identifier: name
         metrics:
-          - name: container_network_receive_bytes_total
-            query: container_network_receive_bytes_total
           - name: container_network_transmit_bytes_total
             query: container_network_transmit_bytes_total
+            unit: bytes
   energy:
     enabled: true
     data_sources:
@@ -84,3 +67,4 @@ monitoring_targets:
         metrics:
           - name: energyUsage
             query: cpuEnergy
+            unit: microjoules
