@@ -1,3 +1,15 @@
+# [1.4.0](https://github.com/MA-DOS/LowLevelMonitoring/compare/v1.3.0...v1.4.0) (2025-06-08)
+
+
+### Bug Fixes
+
+* config typo ([4c29adc](https://github.com/MA-DOS/LowLevelMonitoring/commit/4c29adc19cb97c0f83b1aa734caae45a783ee5dd))
+
+
+### Features
+
+* add metric unit to configuration and logic for output writing ([f86c906](https://github.com/MA-DOS/LowLevelMonitoring/commit/f86c906adac08d5841c1336cd56ea4e1897e46b7))
+
 # [1.3.0](https://github.com/MA-DOS/LowLevelMonitoring/compare/v1.2.2...v1.3.0) (2025-06-07)
 
 
