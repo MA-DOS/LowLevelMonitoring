@@ -224,7 +224,7 @@ func ProcessContainerEvent(config *Config, configPath string, workflowContainer 
 		logrus.Error("Error starting monitoring: ", err)
 		panic(err)
 	}
-	logrus.Infof("Units: %v", queryUnitInfo)
+	// logrus.Infof("Units: %v", queryUnitInfo)
 
 	// Process results.
 	for target, dataSources := range resultMap {

@@ -15,6 +15,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// var maxRetries = 3
+// var resultMatrix model.Matrix
+
 // Using Prometheus API to fetch the monitoring targets.
 func FetchMonitoringTargets(client api.Client, queryIdentifier, query string, workflowContainer watcher.NextflowContainer) (model.Matrix, error) {
 	v1api := v1.NewAPI(client)
@@ -25,10 +28,11 @@ func FetchMonitoringTargets(client api.Client, queryIdentifier, query string, wo
 	defer cancel()
 
 	// Perform range query
+	// for attempt := 1; attempt <= maxRetries; attempt++ {
 	result, warnings, err := v1api.QueryRange(ctx, jobQuery, v1.Range{
-		Start: workflowContainer.StartTime,
-		End:   workflowContainer.DieTime.Add(5 * time.Second), // Add seconds to ensure I get the last sample.
-		Step:  500 * time.Millisecond,
+		Start: workflowContainer.StartTime,                     // Subtract seconds to ensure I get the first sample.
+		End:   workflowContainer.DieTime.Add(10 * time.Second), // Add seconds to ensure I get the last sample.
+		Step:  500 * time.Millisecond,                          // Set the step to 500 milliseconds.
 	})
 
 	if err != nil {
@@ -42,13 +46,22 @@ func FetchMonitoringTargets(client api.Client, queryIdentifier, query string, wo
 	if !ok {
 		return nil, fmt.Errorf("failed to cast Prometheus response to Matrix")
 	}
-	if len(resultMatrix) == 0 {
-		logrus.Warnf("Prometheus query returned no results for query: %s", jobQuery)
-	}
-	if !ok {
-		return nil, fmt.Errorf("failed to cast Prometheus response to Matrix")
-	}
 
+	// if len(resultMatrix) > 0 {
+	// 	logrus.Infof("Prometheus query successful for query: %s, attempt: %d", jobQuery, attempt)
+	// 	break
+	// }
+
+	logrus.Warnf("Prometheus query returned no results for query: %s", jobQuery)
+	// if attempt < maxRetries {
+	// 	time.Sleep(200 * time.Millisecond)
+	// 	logrus.Infof("Retrying Prometheus query: %s, attempt: %d", jobQuery, attempt+1)
+	// }
+	// }
+
+	if len(resultMatrix) == 0 {
+		return nil, fmt.Errorf("no results found for query: %s", jobQuery)
+	}
 	return resultMatrix, nil
 }
 
@@ -96,7 +109,7 @@ func fetchQuery(c *Config, target, dataSource, queryIdentifier string, query tup
 	// Insert the range for the query by event in the container engine.
 	fetcher, err := FetchMonitoringTargets(client, queryIdentifier, query.V2, workflowContainer)
 	if err != nil {
-		logrus.Error("Error fetching monitoring targets", err)
+		logrus.Error("Error fetching monitoring targets: ", err)
 		return
 	}
 
@@ -131,6 +144,11 @@ func BuildQueryByLabelSelector(query, queryIdentifier string, workflowContainer 
 		return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, workflowContainer.Name)
 	case "container_name":
 		return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, workflowContainer.Name)
+	case "instance":
+		// This is a temporary workaround as the snmp does not hold any container related identifiers.
+		return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, "powermeter04.cit.tu-berlin.de")
+	case "job":
+		return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, "ipmi_exporter")
 	}
 	return query
 }

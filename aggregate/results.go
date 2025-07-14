@@ -60,7 +60,7 @@ func CreateMonitoringOutput(v *DataVectorWrapper) error {
 				if v.QueryUnits != nil {
 					if unitsForSource, ok := v.QueryUnits[dataSource]; ok {
 						unit = unitsForSource[queryName]
-						fmt.Printf("Unit for %s/%s: %s\n", dataSource, queryName, unit)
+						// fmt.Printf("Unit for %s/%s: %s\n", dataSource, queryName, unit)
 					}
 				}
 

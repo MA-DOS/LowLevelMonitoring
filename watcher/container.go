@@ -102,11 +102,11 @@ func processContainerEvent(event events.Message, apiClient *client.Client, re *r
 			// 	defer wg.Done()
 			// 	getContainerStats(apiClient, containerInfo.ID, containerInfo.Name)
 			// }()
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				getContainerStatsManual(apiClient, containerInfo.ID, containerInfo.Name)
-			}()
+			// wg.Add(1)
+			// go func() {
+			// 	defer wg.Done()
+			// 	getContainerStatsManual(apiClient, containerInfo.ID, containerInfo.Name)
+			// }()
 
 			if !isStartEvent {
 				mu.Lock()
@@ -181,44 +181,44 @@ func getContainerStats(apiClient *client.Client, containerID, containerName stri
 	containerStats.Body.Close()
 }
 
-func getContainerStatsManual(apiClient *client.Client, containerID, containerName string) {
-	ctx := context.Background()
-	statsFileName := fmt.Sprintf("results/%s.json", containerName)
-	statsFile, err := os.OpenFile(statsFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		logrus.Errorf("Error creating stats file: %v", err)
-		return
-	}
-	defer statsFile.Close()
-	encoder := json.NewEncoder(statsFile)
+// func getContainerStatsManual(apiClient *client.Client, containerID, containerName string) {
+// 	ctx := context.Background()
+// 	statsFileName := fmt.Sprintf("results/%s.json", containerName)
+// 	statsFile, err := os.OpenFile(statsFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+// 	if err != nil {
+// 		logrus.Errorf("Error creating stats file: %v", err)
+// 		return
+// 	}
+// 	defer statsFile.Close()
+// 	encoder := json.NewEncoder(statsFile)
 
-	for {
-		containerStats, err := apiClient.ContainerStats(ctx, containerID, false)
-		if err != nil {
-			logrus.Errorf("Error inspecting container %s: %v", containerID, err)
-			break
-		}
-		var stats container.StatsResponse
-		decoder := json.NewDecoder(containerStats.Body)
-		if err := decoder.Decode(&stats); err != nil {
-			containerStats.Body.Close()
-			logrus.Errorf("Error decoding container stats: %v", err)
-			break
-		}
-		containerStats.Body.Close()
-		if err := encoder.Encode(stats); err != nil {
-			logrus.Errorf("Error writing stats to file: %v", err)
-			break
-		}
+// 	for {
+// 		containerStats, err := apiClient.ContainerStats(ctx, containerID, false)
+// 		if err != nil {
+// 			logrus.Errorf("Error inspecting container %s: %v", containerID, err)
+// 			break
+// 		}
+// 		var stats container.StatsResponse
+// 		decoder := json.NewDecoder(containerStats.Body)
+// 		if err := decoder.Decode(&stats); err != nil {
+// 			containerStats.Body.Close()
+// 			logrus.Errorf("Error decoding container stats: %v", err)
+// 			break
+// 		}
+// 		containerStats.Body.Close()
+// 		if err := encoder.Encode(stats); err != nil {
+// 			logrus.Errorf("Error writing stats to file: %v", err)
+// 			break
+// 		}
 
-		// Check if container is still running
-		inspect, err := apiClient.ContainerInspect(ctx, containerID)
-		if err != nil || !inspect.State.Running {
-			break
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
-}
+// 		// Check if container is still running
+// 		inspect, err := apiClient.ContainerInspect(ctx, containerID)
+// 		if err != nil || !inspect.State.Running {
+// 			break
+// 		}
+// 		time.Sleep(200 * time.Millisecond)
+// 	}
+// }
 
 func createNextflowContainer(containerInfo types.ContainerJSON, pid int) NextflowContainer {
 	return NextflowContainer{
