@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/MA-DOS/LowLevelMonitoring/compare/v1.4.0...v1.5.0) (2025-07-14)
+
+
+### Features
+
+* added ipmi and snmp exporter ([af81920](https://github.com/MA-DOS/LowLevelMonitoring/commit/af81920070a4ad9b9cbc0f61d509fb6f2545018d))
+
 # [1.4.0](https://github.com/MA-DOS/LowLevelMonitoring/compare/v1.3.0...v1.4.0) (2025-06-08)
 
 
