@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -90,9 +91,13 @@ func (c *NextflowPod) GetPodEvents(client *kubernetes.Clientset, podEventChannel
 		fmt.Printf("Error initializing watcher: %v\n", err)
 		return
 	}
+	logrus.Info("K8s client established successfully!")
 	defer watcher.Stop()
 
 	for event := range watcher.ResultChan() {
+		pod := NextflowPod{
+			PodEvent: string(event.Type),
+		}
 		switch event.Type {
 		case watch.Added:
 			fmt.Println("Pod added:", event.Object)
@@ -103,6 +108,7 @@ func (c *NextflowPod) GetPodEvents(client *kubernetes.Clientset, podEventChannel
 		default:
 			fmt.Println("Unhandled event type:", event.Type)
 		}
+		podEventChannel <- pod
 	}
 }
 
