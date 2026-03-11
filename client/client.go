@@ -191,27 +191,33 @@ func StartMonitoring(c *Config, cfp string, workflowContainer watcher.NextflowCo
 	return resultMap, QueryMetaInfo, QueryUnitInfo, err
 }
 
-func ScheduleMonitoring(config *Config, configPath string) {
+// Schedule monitoring depending on execution engine
+func ScheduleMonitoring(config *Config, configPath string, engine string) {
 	monitorIsIdle := false
 
-	// Init the event-based polling for container events.
-	containerEventChannel := make(chan watcher.NextflowContainer)
+	if engine == "docker" {
+		// Init the event-based polling for container events.
+		containerEventChannel := make(chan watcher.NextflowContainer)
 
-	// Start listening for remote container events.
-	go ListenForContainerEvents(config, configPath, containerEventChannel)
+		// Start listening for remote container events.
+		go ListenForContainerEvents(config, configPath, containerEventChannel)
 
-	// Watch local container events.
-	WatchContainerEvents(containerEventChannel)
+		// Watch local container events.
+		WatchContainerEvents(containerEventChannel)
 
-	// Run the main monitoring loop by receiving container events.
-	for {
-		select {
-		case workflowContainer := <-containerEventChannel:
-			monitorIsIdle = false
-			ProcessContainerEvent(config, configPath, workflowContainer)
-		case <-time.After(10 * time.Second):
-			HandleIdleState(&monitorIsIdle)
+		// Run the main monitoring loop by receiving container events.
+		for {
+			select {
+			case workflowContainer := <-containerEventChannel:
+				monitorIsIdle = false
+				ProcessContainerEvent(config, configPath, workflowContainer)
+			case <-time.After(10 * time.Second):
+				HandleIdleState(&monitorIsIdle)
+			}
 		}
+	} else if engine == "k8s" {
+		logrus.Info("Kubernetes execution engine is not yet implemented.")
+		watcher.InitK8sClient()
 	}
 }
 

@@ -8,6 +8,10 @@ import (
 const configFilePath = "config.yml"
 
 func main() {
+	// Parse the execution engine flag.
+	engine := client.ParseExecutionEngineFlag()
+	logrus.Infof("Using execution engine: %s", engine)
+
 	// Load the configuration file.
 	config, err := client.NewConfig(configFilePath)
 	if err != nil {
@@ -16,5 +20,5 @@ func main() {
 	}
 
 	// Start the monitoring loop.
-	client.ScheduleMonitoring(config, configFilePath)
+	client.ScheduleMonitoring(config, configFilePath, engine)
 }

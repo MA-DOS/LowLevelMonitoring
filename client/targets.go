@@ -28,6 +28,8 @@ func ConsolidateQueries(mt map[string]any) map[string]map[string][]tuple.T5[stri
 	}
 }
 
+// This is a test comment
+
 // Parse the config file for the metrics and according queries.
 func ReadMonitoringConfiguration(cfp string) map[string]any {
 	// Read in the config yml.
