@@ -179,6 +179,17 @@ func WatchContainerEvents(containerEventChannel chan<- watcher.NextflowContainer
 	go workflowContainer.GetContainerEvents(containerEventChannel)
 }
 
+func WatchPodEvents(podEventChannel chan<- watcher.NextflowPod) {
+	// Init K8s client
+	client, err := watcher.InitK8sClient()
+	if err != nil {
+		logrus.Error("Error initializing Kubernetes client: ", err)
+		return
+	}
+	workflowPod := watcher.NextflowPod{}
+	go workflowPod.GetPodEvents(client, podEventChannel)
+}
+
 // Refactor to pass a nxf container object
 func StartMonitoring(c *Config, cfp string, workflowContainer watcher.NextflowContainer) (map[string]map[string]map[string]model.Matrix, map[string][]string, map[string]map[string]string, error) {
 	queriesMap := ConsolidateQueries(ReadMonitoringConfiguration(cfp)) // Ignore labels
@@ -194,7 +205,6 @@ func StartMonitoring(c *Config, cfp string, workflowContainer watcher.NextflowCo
 // Schedule monitoring depending on execution engine
 func ScheduleMonitoring(config *Config, configPath string, engine string) {
 	monitorIsIdle := false
-
 	if engine == "docker" {
 		// Init the event-based polling for container events.
 		containerEventChannel := make(chan watcher.NextflowContainer)
@@ -216,8 +226,10 @@ func ScheduleMonitoring(config *Config, configPath string, engine string) {
 			}
 		}
 	} else if engine == "k8s" {
-		logrus.Info("Kubernetes execution engine is not yet implemented.")
-		watcher.InitK8sClient()
+		podEventChannel := make(chan watcher.NextflowPod)
+		logrus.Info("Kubernetes execution engine is only partially implemented.")
+		// Watch local container events.
+		WatchPodEvents(podEventChannel)
 	}
 }
 

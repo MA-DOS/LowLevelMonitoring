@@ -6,8 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -15,7 +17,18 @@ import (
 // Regex to match Nextflow container names.
 var pod_re = regexp.MustCompile(`^/nxf-[a-zA-Z0-9-]+$`)
 
-func InitK8sClient() error {
+type NextflowPod struct {
+	WorkerIP  string    `json:"node"`
+	PodEvent  string    `json:"event"`
+	StartTime time.Time `json:"start_time"`
+	DieTime   time.Time `json:"die_time"`
+	Name      string    `json:"name"`
+	LifeTime  string    `json:"life_time"`
+	PodID     string    `json:"container_id"`
+	WorkDir   string    `json:"work_dir"`
+}
+
+func InitK8sClient() (*kubernetes.Clientset, error) {
 
 	// The default location for the kubeconfig file is in the user's home directory.
 	var kubeconfig string
@@ -26,7 +39,7 @@ func InitK8sClient() error {
 	if kubeconfig == "" {
 		err := fmt.Errorf("no kubeconfig present: HOME is not set and kubeconfig path could not be determined")
 		fmt.Printf("Error encountered: %v\n", err)
-		return err
+		return nil, err
 	}
 
 	if _, err := os.Stat(kubeconfig); err != nil {
@@ -36,14 +49,14 @@ func InitK8sClient() error {
 			err = fmt.Errorf("unable to access kubeconfig at %s: %w", kubeconfig, err)
 		}
 		fmt.Printf("Error encountered: %v\n", err)
-		return err
+		return nil, err
 	}
 
 	// Create the client configuration from the kubeconfig file.
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
 		fmt.Printf("Error encountered: %v\n", err)
-		return err
+		return nil, err
 	}
 
 	// Configure client-side rate limiting.
@@ -55,30 +68,43 @@ func InitK8sClient() error {
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		fmt.Printf("Error encountered: %v\n", err)
-		return err
+		return nil, err
 	}
 
 	// Use the clientset to interact with the API.
-	pods, err := clientset.CoreV1().Pods("default").List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		fmt.Printf("Error encountered: %v\n", err)
-		return err
-	}
+	// pods, err := clientset.CoreV1().Pods("default").List(context.TODO(), metav1.ListOptions{})
+	// if err != nil {
+	// 	fmt.Printf("Error encountered: %v\n", err)
+	// 	return nil, err
+	// }
 
 	// Smoketest
-	fmt.Printf("There are %d pods in the default namespace\n", len(pods.Items))
-	return err
+	// fmt.Printf("There are %d pods in the default namespace\n", len(pods.Items))
+	return clientset, err
 }
 
-// func (c *NextflowContainer) GetPodEvents(containerEventChannel chan<- NextflowContainer) {
-// 	// Container Client.
-// 	apiClient, err := client.NewClientWithOpts(client.FromEnv, client.WithVersion("1.49"))
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	defer apiClient.Close()
+func (c *NextflowPod) GetPodEvents(client *kubernetes.Clientset, podEventChannel chan<- NextflowPod) {
+	// K8s Client.
+	watcher, err := client.CoreV1().Pods("").Watch(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		fmt.Printf("Error initializing watcher: %v\n", err)
+		return
+	}
+	defer watcher.Stop()
 
-// 	eventChan, errChan := apiClient.Events(context.Background(), events.ListOptions{})
+	for event := range watcher.ResultChan() {
+		switch event.Type {
+		case watch.Added:
+			fmt.Println("Pod added:", event.Object)
+		case watch.Modified:
+			fmt.Println("Pod modified:", event.Object)
+		case watch.Deleted:
+			fmt.Println("Pod deleted:", event.Object)
+		default:
+			fmt.Println("Unhandled event type:", event.Type)
+		}
+	}
+}
 
 // 	processedStarts := make(map[string]bool) // Track started containers
 // 	processedDies := make(map[string]bool)   // Track died containers
