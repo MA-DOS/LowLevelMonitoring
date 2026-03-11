@@ -2,9 +2,9 @@ server_configurations:
   config_path: .
   prometheus:
     target_server:
-      controller: ""
-      workers: [""]
-      address: ""
+      controller: "127.0.0.1"
+      workers: []
+      address: "127.0.0.1"
       timeout: 10s
       interval: 1
 monitoring_targets:

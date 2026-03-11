@@ -20,7 +20,7 @@ func InitK8sClient() error {
 	// The default location for the kubeconfig file is in the user's home directory.
 	var kubeconfig string
 	if home := os.Getenv("HOME"); home != "" {
-		kubeconfig = filepath.Join(".", "config")
+		kubeconfig = filepath.Join(home, ".kube", "config")
 	}
 
 	if kubeconfig == "" {
