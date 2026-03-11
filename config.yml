@@ -1,28 +1,28 @@
 server_configurations:
-  config_path: ~/dev/LowLevelMonitoring/config.yml
+  config_path: .
   prometheus:
     target_server:
-      controller: "130.149.248.100"
-      workers: ["130.149.248.100"]
-      address: "http://130.149.248.100:9090"
+      controller: ""
+      workers: [""]
+      address: ""
       timeout: 10s
       interval: 1
 monitoring_targets:
   task_metadata:
-    enabled: true
+    enabled: false
     data_sources:
-      - source: slurm-job-exporter
-        labels: [instance,job_name,job_state,node,run_time,work_dir]
-        identifier: work_dir
+      - source:
+        labels:
+        identifier:
         metrics:
-          - name: slurm_job_id
-            query: slurm_job_id
-            unit: ""
+          - name:
+            query:
+            unit:
   cpu:
-    enabled: true
+    enabled: false
     data_sources:
       - source: cAdvisor
-        labels: [id, image, job,name]
+        labels: [id, image, job, name]
         identifier: name
         metrics:
           - name: container_cpu_user_seconds_total
@@ -36,34 +36,34 @@ monitoring_targets:
             query: container_weighted_cycles
             unit: counter
       - source: docker-activity
-        labels: [container_id, container_name,instance]
+        labels: [container_id, container_name, instance]
         identifier: container_name
         metrics:
           - name: cpuPercent
             query: cpuPercent
             unit: percentage (%)
   memory:
-    enabled: true
+    enabled: false
     data_sources:
       - source: cAdvisor
-        labels: [id, image, job,name]
+        labels: [id, image, job, name]
         identifier: name
         metrics:
           - name: container_memory_usage_bytes
             query: container_memory_usage_bytes
             unit: bytes
       - source: docker-activity
-        labels: [container_id, container_name,instance]
+        labels: [container_id, container_name, instance]
         identifier: container_name
         metrics:
           - name: memoryUsage
             query: memoryUsage
             unit: bytes
   disk:
-    enabled: true
+    enabled: false
     data_sources:
       - source: cAdvisor
-        labels: [id, image, job,name]
+        labels: [id, image, job, name]
         identifier: name
         metrics:
           - name: container_blkio_device_usage_total
@@ -82,52 +82,62 @@ monitoring_targets:
     enabled: false
     data_sources:
       - source: cAdvisor
-        labels: [id, image, job,name]
+        labels: [id, image, job, name]
         identifier: name
         metrics:
           - name: container_network_transmit_bytes_total
             query: container_network_transmit_bytes_total
             unit: bytes
-  energy:
-    enabled: true
-    data_sources:
-      - source: docker-activity
-        labels: [container_id, container_name,instance]
-        identifier: container_name
-        metrics:
-          - name: energyUsage
-            query: cpuEnergy
-            unit: microjoules
-      - source: ebpf-mon
-        labels: [container_id, name]
-        identifier: name
-        metrics:
-          - name: container_power 
-            query: container_power
-            unit: microjoules
-      - source: ipmi-exporter
-        labels: [name]
-        identifier: job
-        metrics:
-          - name: ipmi_voltage_volts
-            query: ipmi_voltage_volts
-            unit: volts
-          - name: ipmi_temperature_celsius
-            query: ipmi_temperature_celsius
-            unit: celsius
-      - source: snmp-exporter
-        labels: [name]
-        identifier: instance
-        metrics:
-          - name: gude_power_watts
-            query: gude_power_watts
-            unit: watts
-          - name: gude_energy_wh_total
-            query: gude_energy_wh_total
-            unit: watts
-          - name: gude_voltage_v
-            query: gude_voltage_v
-            unit: volts
-          - name: gude_current_ma
-            query: gude_current_ma
-            unit: ma
+    # energy:
+    #   enabled: true
+    #   data_sources:
+    #     - source: docker-activity
+    #       labels: [container_id, container_name,instance]
+    #       identifier: container_name
+    #       metrics:
+    #         - name: energyUsage
+    #           query: cpuEnergy
+    #           unit: microjoules
+    #     - source: ebpf-mon
+    #       labels: [container_id, name]
+    #       identifier: name
+    #       metrics:
+    #         - name: container_power
+    #           query: container_power
+    #           unit: microjoules
+    #     - source: ipmi-exporter
+    #       labels: [name]
+    #       identifier: job
+    #       metrics:
+    #         - name: ipmi_voltage_volts
+    #           query: ipmi_voltage_volts
+    #           unit: volts
+    #         - name: ipmi_temperature_celsius
+    #           query: ipmi_temperature_celsius
+    #           unit: celsius
+    #     - source: snmp-exporter
+    #       labels: [name]
+    #       identifier: instance
+    #       metrics:
+    #         - name: gude_power_watts
+    #           query: gude_power_watts
+    #           unit: watts
+    #         - name: gude_energy_wh_total
+    #           query: gude_energy_wh_total
+    #           unit: watts
+    #         - name: gude_voltage_v
+    #           query: gude_voltage_v
+    #           unit: volts
+    #         - name: gude_current_ma
+    #           query: gude_current_ma
+    #           unit: ma
+    energy:
+      enabled: true
+      data_sources:
+        - source: Kepler
+          labels: [pod_name, node_name, zone]
+          identifier: pod_name
+          metrics:
+            - name: kepler_pod_cpu_watts
+              query: kepler_pod_cpu_watts
+              unit: toBeFoundOut
