@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MA-DOS/LowLevelMonitoring/aggregate"
+	"github.com/MA-DOS/LowLevelMonitoring/common"
 	"github.com/MA-DOS/LowLevelMonitoring/watcher"
 	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/common/model"
@@ -118,7 +119,7 @@ func CreateTCPListener(controllerIP string) (*net.TCPListener, error) {
 	return listener, nil
 }
 
-func ListenForContainerEvents(c *Config, configPath string, containerEventChannel chan<- watcher.NextflowContainer) {
+func ListenForContainerEvents(c *Config, configPath string, containerEventChannel chan<- common.WorkflowEntity) {
 	// Create the TCP listener using the helper function.
 	listener, err := CreateTCPListener(c.ServerConfigurations.Prometheus.TargetServer.Controller)
 	if err != nil {
@@ -142,7 +143,7 @@ func ListenForContainerEvents(c *Config, configPath string, containerEventChanne
 	}(listener)
 }
 
-func HandleIncomingContainerEvents(con net.Conn, containerEventChannel chan<- watcher.NextflowContainer) {
+func HandleIncomingContainerEvents(con net.Conn, containerEventChannel chan<- common.WorkflowEntity) {
 	defer con.Close()
 
 	// Read the incoming data from the connection.
@@ -169,17 +170,17 @@ func HandleIncomingContainerEvents(con net.Conn, containerEventChannel chan<- wa
 		watcher.WriteStartedToOutput(container) // Write the container data to output.
 	case "[DIED]":
 		logrus.Info("[REMOTE DIE EVENT] Writing container to output and monitoring channel.", container)
-		containerEventChannel <- container   // Forward the container event to the monitoring logic.
+		containerEventChannel <- &container  // Forward the container event to the monitoring logic as WorkflowEntity.
 		watcher.WriteDiedToOutput(container) // Write the container data to output.
 	}
 }
 
-func WatchContainerEvents(containerEventChannel chan<- watcher.NextflowContainer) {
+func WatchContainerEvents(containerEventChannel chan<- common.WorkflowEntity) {
 	workflowContainer := watcher.NextflowContainer{}
 	go workflowContainer.GetContainerEvents(containerEventChannel)
 }
 
-func WatchPodEvents(podEventChannel chan<- watcher.NextflowPod) {
+func WatchPodEvents(podEventChannel chan<- common.WorkflowEntity) {
 	// Init K8s client
 	client, err := watcher.InitK8sClient()
 	if err != nil {
@@ -191,10 +192,10 @@ func WatchPodEvents(podEventChannel chan<- watcher.NextflowPod) {
 }
 
 // Refactor to pass a nxf container object
-func StartMonitoring(c *Config, cfp string, workflowContainer watcher.NextflowContainer) (map[string]map[string]map[string]model.Matrix, map[string][]string, map[string]map[string]string, error) {
+func StartMonitoring(c *Config, cfp string, entity common.WorkflowEntity) (map[string]map[string]map[string]model.Matrix, map[string][]string, map[string]map[string]string, error) {
 	queriesMap := ConsolidateQueries(ReadMonitoringConfiguration(cfp)) // Ignore labels
 
-	resultMap, QueryMetaInfo, QueryUnitInfo, err := FetchMonitoringSources(c, workflowContainer, queriesMap)
+	resultMap, QueryMetaInfo, QueryUnitInfo, err := FetchMonitoringSources(c, entity, queriesMap)
 	if err != nil {
 		logrus.Error("Error fetching queries: ", err)
 		return resultMap, QueryMetaInfo, QueryUnitInfo, err
@@ -207,7 +208,7 @@ func ScheduleMonitoring(config *Config, configPath string, engine string) {
 	monitorIsIdle := false
 	if engine == "docker" {
 		// Init the event-based polling for container events.
-		containerEventChannel := make(chan watcher.NextflowContainer)
+		containerEventChannel := make(chan common.WorkflowEntity)
 
 		// Start listening for remote container events.
 		go ListenForContainerEvents(config, configPath, containerEventChannel)
@@ -218,26 +219,37 @@ func ScheduleMonitoring(config *Config, configPath string, engine string) {
 		// Run the main monitoring loop by receiving container events.
 		for {
 			select {
-			case workflowContainer := <-containerEventChannel:
+			case entity := <-containerEventChannel:
 				monitorIsIdle = false
-				ProcessContainerEvent(config, configPath, workflowContainer)
+				ProcessEntityEvent(config, configPath, entity)
 			case <-time.After(10 * time.Second):
 				HandleIdleState(&monitorIsIdle)
 			}
 		}
 	} else if engine == "k8s" {
-		podEventChannel := make(chan watcher.NextflowPod)
+		podEventChannel := make(chan common.WorkflowEntity)
 		logrus.Info("Kubernetes execution engine is only partially implemented.")
 		// Watch local container events.
 		WatchPodEvents(podEventChannel)
+
+		// Run the main monitoring loop by receiving container events.
+		for {
+			select {
+			case entity := <-podEventChannel:
+				monitorIsIdle = false
+				ProcessEntityEvent(config, configPath, entity)
+			case <-time.After(1000000000 * time.Second):
+				HandleIdleState(&monitorIsIdle)
+			}
+		}
 	}
 }
 
-func ProcessContainerEvent(config *Config, configPath string, workflowContainer watcher.NextflowContainer) {
-	logrus.Infof("[RECEIVED DEAD CONTAINER] Container Name coming from channel: %s who lived for %v and has PID %v.", workflowContainer.Name, workflowContainer.LifeTime, workflowContainer.PID)
+func ProcessEntityEvent(config *Config, configPath string, entity common.WorkflowEntity) {
+	logrus.Infof("[RECEIVED KILL EVENT]")
 
 	// Run the Monitor against Prometheus.
-	resultMap, queryMetaInfo, queryUnitInfo, err := StartMonitoring(config, configPath, workflowContainer)
+	resultMap, queryMetaInfo, queryUnitInfo, err := StartMonitoring(config, configPath, entity)
 	if err != nil {
 		logrus.Error("Error starting monitoring: ", err)
 		panic(err)
@@ -262,3 +274,33 @@ func ProcessContainerEvent(config *Config, configPath string, workflowContainer 
 		}
 	}
 }
+
+// func ProcessContainerEvent(config *Config, configPath string, workflowContainer watcher.NextflowContainer) {
+// 	logrus.Infof("[RECEIVED DEAD CONTAINER] Container Name coming from channel: %s who lived for %v and has PID %v.", workflowContainer.Name, workflowContainer.LifeTime, workflowContainer.PID)
+
+// 	// Run the Monitor against Prometheus.
+// 	resultMap, queryMetaInfo, queryUnitInfo, err := StartMonitoring(config, configPath, workflowContainer)
+// 	if err != nil {
+// 		logrus.Error("Error starting monitoring: ", err)
+// 		panic(err)
+// 	}
+// 	// logrus.Infof("Units: %v", queryUnitInfo)
+
+// 	// Process results.
+// 	for target, dataSources := range resultMap {
+// 		for dataSource, queryNames := range dataSources {
+// 			for queryName, samples := range queryNames {
+// 				dataWrapper := aggregate.NewDataVectorWrapper(map[string]map[string]map[string]model.Matrix{
+// 					target: {
+// 						dataSource: {
+// 							queryName: samples,
+// 						},
+// 					},
+// 				}, queryMetaInfo, queryUnitInfo)
+// 				if err := dataWrapper.CreateDataOutput(); err != nil {
+// 					logrus.Error("Error creating output: ", err)
+// 				}
+// 			}
+// 		}
+// 	}
+// }

@@ -2,13 +2,18 @@ package watcher
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
+	"sync"
 	"time"
 
+	"github.com/MA-DOS/LowLevelMonitoring/common"
 	"github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -16,10 +21,13 @@ import (
 )
 
 // Regex to match Nextflow container names.
-var pod_re = regexp.MustCompile(`^/nxf-[a-zA-Z0-9-]+$`)
+var pod_re = regexp.MustCompile(`^nf-[a-f0-9]{32}-[a-f0-9]{5}$`)
+
+// Ensure NextflowPod implements the WorkflowEntity interface
+var _ common.WorkflowEntity = (*NextflowPod)(nil)
+var mu sync.Mutex
 
 type NextflowPod struct {
-	WorkerIP  string    `json:"node"`
 	PodEvent  string    `json:"event"`
 	StartTime time.Time `json:"start_time"`
 	DieTime   time.Time `json:"die_time"`
@@ -73,339 +81,221 @@ func InitK8sClient() (*kubernetes.Clientset, error) {
 	}
 
 	// Use the clientset to interact with the API.
-	// pods, err := clientset.CoreV1().Pods("default").List(context.TODO(), metav1.ListOptions{})
-	// if err != nil {
-	// 	fmt.Printf("Error encountered: %v\n", err)
-	// 	return nil, err
-	// }
-
-	// Smoketest
-	// fmt.Printf("There are %d pods in the default namespace\n", len(pods.Items))
+	pods, err := clientset.CoreV1().Pods("default").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		fmt.Printf("Error encountered: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("There are %d pods in the default namespace\n", len(pods.Items))
 	return clientset, err
 }
 
-func (c *NextflowPod) GetPodEvents(client *kubernetes.Clientset, podEventChannel chan<- NextflowPod) {
+func (c *NextflowPod) GetPodEvents(client *kubernetes.Clientset, podEventChannel chan<- common.WorkflowEntity) {
 	// K8s Client.
 	watcher, err := client.CoreV1().Pods("").Watch(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		fmt.Printf("Error initializing watcher: %v\n", err)
 		return
 	}
-	logrus.Info("K8s client established successfully!")
-	defer watcher.Stop()
+	eventChannel := watcher.ResultChan()
 
-	for event := range watcher.ResultChan() {
-		pod := NextflowPod{
-			PodEvent: string(event.Type),
+	processedStarts := make(map[string]bool) // Track started containers
+	processedKills := make(map[string]bool)  // Track died containers
+
+	for event := range eventChannel {
+
+		p, ok := event.Object.(*corev1.Pod)
+		if !ok {
+			continue
 		}
-		switch event.Type {
-		case watch.Added:
-			fmt.Println("Pod added:", event.Object)
-		case watch.Modified:
-			fmt.Println("Pod modified:", event.Object)
-		case watch.Deleted:
-			fmt.Println("Pod deleted:", event.Object)
-		default:
-			fmt.Println("Unhandled event type:", event.Type)
+		if pod_re.MatchString(p.Name) && p.Status.Phase != corev1.PodSucceeded && p.Status.Phase != corev1.PodFailed {
+			switch event.Type {
+			case watch.Added:
+				logrus.Infof("Pod added: %s/%s", p.Namespace, p.Name)
+				processPodEvent(p, processedStarts, podEventChannel, true)
+			}
+			// if pod_re.MatchString(p.Name) {
+			// 	switch event.Type {
+			// 	case watch.Deleted:
+			// 		logrus.Infof("Pod deleted: %s/%s", p.Namespace, p.Name)
+			// 		processPodEvent(p, processedKills, podEventChannel, false)
+			// 	}
+			// }
+		} else {
+			switch event.Type {
+			case watch.Deleted:
+				logrus.Infof("Pod deleted: %s/%s", p.Namespace, p.Name)
+				processPodEvent(p, processedKills, podEventChannel, false)
+			}
 		}
-		podEventChannel <- pod
 	}
 }
 
-// 	processedStarts := make(map[string]bool) // Track started containers
-// 	processedDies := make(map[string]bool)   // Track died containers
-// 	containerPIDs := make(map[string]int)    // Track container PIDs
-// 	var mu sync.Mutex
-// 	wg := sync.WaitGroup{}
+func processPodEvent(p *corev1.Pod, processed map[string]bool, podEventChannel chan<- common.WorkflowEntity, isStartEvent bool) {
+	if len(p.Name) > 0 && pod_re.MatchString(p.Name) {
+		processed[p.Name] = true
+		logrus.Infof("Found Nextflow pod: %s\n", p.Name)
+		nextflowEntity := createNextflowPod(p)
 
-// 	go func() {
-// 		for {
-// 			select {
-// 			case event := <-eventChan:
-// 				if event.Type == events.ContainerEventType {
-// 					switch event.Action {
-// 					case "start":
-// 						processContainerEvent(event, apiClient, re, &mu, processedStarts, containerPIDs, containerEventChannel, true, &wg)
-// 					case "die":
-// 						processContainerEvent(event, apiClient, re, &mu, processedDies, containerPIDs, containerEventChannel, false, &wg)
-// 					}
-// 				}
-// 			case err := <-errChan:
-// 				if err != nil {
-// 					logrus.Error("Error while watching for events: ", err)
-// 				}
-// 			}
-// 		}
-// 	}()
-// 	wg.Wait()
-// }
+		if isStartEvent {
+			// eventType := "[STARTED]"
+			if pod, ok := nextflowEntity.(*NextflowPod); ok {
+				WriteStartedPodToOutput(*pod)
+			}
+		}
 
-// func processContainerEvent(event events.Message, apiClient *client.Client, re *regexp.Regexp, mu *sync.Mutex, processed map[string]bool, containerPIDs map[string]int, containerEventChannel chan<- NextflowContainer, isStartEvent bool, wg *sync.WaitGroup) {
-// 	mu.Lock()
-// 	if processed[event.Actor.ID] {
-// 		mu.Unlock()
-// 		return
-// 	}
-// 	processed[event.Actor.ID] = true
-// 	mu.Unlock()
+		if !isStartEvent {
+			// eventType = "[DIED]"
+			podEventChannel <- nextflowEntity
+			if pod, ok := nextflowEntity.(*NextflowPod); ok {
+				WriteKilledPodToOutput(*pod)
+			}
+		}
+	}
+}
 
-// 	go func() {
-// 		// Get container metadata for prometheus queries.
-// 		containerInfo, err := apiClient.ContainerInspect(context.Background(), event.Actor.ID)
-// 		if err != nil {
-// 			logrus.Printf("Error inspecting container %s: %v", event.Actor.ID, err)
-// 			return
-// 		}
+func createNextflowPod(p *corev1.Pod) common.WorkflowEntity {
+	var start, kill time.Time
+	var lifeTime string
 
-// 		if len(containerInfo.Name) > 0 && re.MatchString(containerInfo.Name) {
-// 			eventType := "[STARTED]"
-// 			if !isStartEvent {
-// 				eventType = "[DIED]"
-// 			}
-// 			logrus.Infof("%s nextflow container: %s\n", eventType, containerInfo.Name)
-// 			pid := containerInfo.State.Pid
+	// Use the pod's StartTime for the start time
+	if p.Status.StartTime != nil {
+		start = p.Status.StartTime.Time
+	}
 
-// 			// wg.Add(1)
-// 			// go func() {
-// 			// 	defer wg.Done()
-// 			// 	getContainerStats(apiClient, containerInfo.ID, containerInfo.Name)
-// 			// }()
-// 			// wg.Add(1)
-// 			// go func() {
-// 			// 	defer wg.Done()
-// 			// 	getContainerStatsManual(apiClient, containerInfo.ID, containerInfo.Name)
-// 			// }()
+	// Determine the kill time based on the pod's phase
+	if p.Status.Phase == corev1.PodSucceeded || p.Status.Phase == corev1.PodFailed {
+		for _, condition := range p.Status.Conditions {
+			if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionFalse {
+				kill = condition.LastTransitionTime.Time
+				break
+			}
+		}
+	}
 
-// 			if !isStartEvent {
-// 				mu.Lock()
-// 				pid = containerPIDs[event.Actor.ID]
-// 				if pid == 0 {
-// 					logrus.Warn("Container Process interrupted, PID not found")
-// 					return
-// 				}
-// 				mu.Unlock()
-// 			}
+	// Calculate the lifetime if both start and kill times are available
+	if !start.IsZero() && !kill.IsZero() {
+		lifeTime = fmt.Sprintf("%d ms", kill.Sub(start).Milliseconds())
+	}
 
-// 			nextflowContainer := createNextflowContainer(containerInfo, pid)
+	return &NextflowPod{
+		Name:     p.Name,
+		LifeTime: lifeTime,
+		PodID:    string(p.UID),
+		WorkDir:  p.Labels["workdir"],
+	}
+}
 
-// 			if isStartEvent {
-// 				mu.Lock()
-// 				containerPIDs[event.Actor.ID] = pid
-// 				mu.Unlock()
-// 				WriteStartedToOutput(nextflowContainer)
-// 			} else {
-// 				mu.Lock()
-// 				pid = containerPIDs[event.Actor.ID]
-// 				if pid == 0 {
-// 					logrus.Warn("Container Process interrupted, PID not found")
-// 					return
-// 				}
-// 				mu.Unlock()
-// 				containerEventChannel <- nextflowContainer
-// 				WriteDiedToOutput(nextflowContainer)
-// 			}
-// 		}
-// 	}()
-// }
+// Implement WorkflowEntity interface for NextflowPod
+func (p NextflowPod) GetStartTime() time.Time {
+	return p.StartTime
+}
 
-// func getContainerStats(apiClient *client.Client, containerID, containerName string) {
-// 	ctx := context.Background()
-// 	containerStats, err := apiClient.ContainerStats(ctx, containerID, true)
-// 	if err != nil {
-// 		logrus.Errorf("Error inspecting container %s: %v", containerID, err)
-// 		return
-// 	}
-// 	defer containerStats.Body.Close()
+func (p NextflowPod) GetDieTime() time.Time {
+	return p.DieTime
+}
 
-// 	if _, err := os.Stat("results"); os.IsNotExist(err) {
-// 		logrus.Errorf("Results directory does not exist, not writing stats for %s", containerName)
-// 		return
-// 	}
-// 	statsFileName := fmt.Sprintf("results/%s.json", containerName)
-// 	// statsFile, err := os.Create(statsFileName)
-// 	statsFile, err := os.OpenFile(statsFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-// 	if err != nil {
-// 		logrus.Errorf("Error creating stats file: %v", err)
-// 	} else {
-// 		defer statsFile.Close()
-// 		decoder := json.NewDecoder(containerStats.Body)
-// 		encoder := json.NewEncoder(statsFile)
+func (p NextflowPod) GetName() string {
+	return p.Name
+}
 
-// 		for {
-// 			var stats container.StatsResponse
-// 			if err := decoder.Decode(&stats); err != nil {
-// 				if err == io.EOF {
-// 					break
-// 				}
-// 				logrus.Errorf("Error decoding container stats: %v", err)
-// 				break
-// 			}
-// 			if err := encoder.Encode(stats); err != nil {
-// 				logrus.Errorf("Error writing stats to file: %v", err)
-// 				break
-// 			}
-// 		}
-// 	}
-// 	containerStats.Body.Close()
-// }
+func (p NextflowPod) GetWorkDir() string {
+	return p.WorkDir
+}
 
-// // func getContainerStatsManual(apiClient *client.Client, containerID, containerName string) {
-// // 	ctx := context.Background()
-// // 	statsFileName := fmt.Sprintf("results/%s.json", containerName)
-// // 	statsFile, err := os.OpenFile(statsFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-// // 	if err != nil {
-// // 		logrus.Errorf("Error creating stats file: %v", err)
-// // 		return
-// // 	}
-// // 	defer statsFile.Close()
-// // 	encoder := json.NewEncoder(statsFile)
+func WriteStartedPodToOutput(pod NextflowPod) {
+	fullPath := prepareOutputFile("results", "started_nextflow_pod.csv")
+	if fullPath == "" {
+		return
+	}
 
-// // 	for {
-// // 		containerStats, err := apiClient.ContainerStats(ctx, containerID, false)
-// // 		if err != nil {
-// // 			logrus.Errorf("Error inspecting container %s: %v", containerID, err)
-// // 			break
-// // 		}
-// // 		var stats container.StatsResponse
-// // 		decoder := json.NewDecoder(containerStats.Body)
-// // 		if err := decoder.Decode(&stats); err != nil {
-// // 			containerStats.Body.Close()
-// // 			logrus.Errorf("Error decoding container stats: %v", err)
-// // 			break
-// // 		}
-// // 		containerStats.Body.Close()
-// // 		if err := encoder.Encode(stats); err != nil {
-// // 			logrus.Errorf("Error writing stats to file: %v", err)
-// // 			break
-// // 		}
+	file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		logrus.Error("Error opening file: ", err)
+		return
+	}
+	defer file.Close()
 
-// // 		// Check if container is still running
-// // 		inspect, err := apiClient.ContainerInspect(ctx, containerID)
-// // 		if err != nil || !inspect.State.Running {
-// // 			break
-// // 		}
-// // 		time.Sleep(200 * time.Millisecond)
-// // 	}
-// // }
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
 
-// func createNextflowContainer(containerInfo types.ContainerJSON, pid int) NextflowContainer {
-// 	return NextflowContainer{
-// 		StartTime: func() time.Time {
-// 			t, _ := time.Parse(time.RFC3339, containerInfo.State.StartedAt)
-// 			return t
-// 		}(),
-// 		DieTime: func() time.Time {
-// 			t, _ := time.Parse(time.RFC3339, containerInfo.State.FinishedAt)
-// 			return t
-// 		}(),
-// 		Name: strings.TrimPrefix(containerInfo.Name, "/"),
-// 		LifeTime: func() string {
-// 			startTime, _ := time.Parse(time.RFC3339, containerInfo.State.StartedAt)
-// 			dieTime, _ := time.Parse(time.RFC3339, containerInfo.State.FinishedAt)
-// 			return dieTime.Sub(startTime).String()
-// 		}(),
-// 		PID:         pid,
-// 		ContainerID: containerInfo.ID,
-// 		WorkDir:     containerInfo.Config.WorkingDir,
-// 	}
-// }
+	// Write CSV header if the file is empty
+	if isFileEmpty(file) {
+		if err := writer.Write([]string{"Name", "PodID", "WorkDir"}); err != nil {
+			logrus.Error("Error writing CSV header: ", err)
+			return
+		}
+	}
 
-// func WriteStartedToOutput(container NextflowContainer) {
-// 	fullPath := prepareOutputFile("results", "started_nextflow_containers.csv")
-// 	if fullPath == "" {
-// 		return
-// 	}
+	// Write pod data to CSV
+	if err := writer.Write([]string{
+		pod.Name,
+		pod.PodID,
+		pod.WorkDir,
+	}); err != nil {
+		logrus.Error("Error writing pod data to CSV: ", err)
+	}
+}
 
-// 	file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-// 	if err != nil {
-// 		logrus.Error("Error opening file: ", err)
-// 		return
-// 	}
-// 	defer file.Close()
+func WriteKilledPodToOutput(pod NextflowPod) {
+	fullPath := preparePodOutputFile("results", "died_nextflow_pods.csv")
+	if fullPath == "" {
+		return
+	}
 
-// 	writer := csv.NewWriter(file)
-// 	defer writer.Flush()
+	file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		logrus.Error("Error opening file: ", err)
+		return
+	}
+	defer file.Close()
 
-// 	// Write CSV header if the file is empty
-// 	if isFileEmpty(file) {
-// 		if err := writer.Write([]string{"Name", "PID", "ContainerID", "WorkDir"}); err != nil {
-// 			logrus.Error("Error writing CSV header: ", err)
-// 			return
-// 		}
-// 	}
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
 
-// 	// Write container data to CSV
-// 	if err := writer.Write([]string{
-// 		container.Name,
-// 		fmt.Sprintf("%d", container.PID),
-// 		container.ContainerID,
-// 		container.WorkDir,
-// 	}); err != nil {
-// 		logrus.Error("Error writing container data to CSV: ", err)
-// 	}
-// }
+	if isPodFileEmpty(file) {
+		if err := writer.Write([]string{"Name", "PodID", "LifeTime", "WorkDir"}); err != nil {
+			logrus.Error("Error writing CSV header: ", err)
+			return
+		}
+	}
 
-// func WriteDiedToOutput(container NextflowContainer) {
-// 	fullPath := prepareOutputFile("results", "died_nextflow_containers.csv")
-// 	if fullPath == "" {
-// 		return
-// 	}
+	// Write pod data to CSV
+	if err := writer.Write([]string{
+		pod.Name,
+		pod.PodID,
+		pod.LifeTime,
+		pod.WorkDir,
+	}); err != nil {
+		logrus.Error("Error writing pod data to CSV: ", err)
+	}
+}
 
-// 	file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-// 	if err != nil {
-// 		logrus.Error("Error opening file: ", err)
-// 		return
-// 	}
-// 	defer file.Close()
+func preparePodOutputFile(path, fileName string) string {
+	fullPath := fmt.Sprintf("%s/%s", path, fileName)
 
-// 	writer := csv.NewWriter(file)
-// 	defer writer.Flush()
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		if err := os.MkdirAll(path, 0755); err != nil {
+			logrus.Error("Error creating results directory: ", err)
+			return ""
+		}
+	}
 
-// 	// Write CSV header if the file is empty
-// 	if isFileEmpty(file) {
-// 		if err := writer.Write([]string{"Name", "PID", "ContainerID", "WorkDir", "LifeTime"}); err != nil {
-// 			logrus.Error("Error writing CSV header: ", err)
-// 			return
-// 		}
-// 	}
+	return fullPath
+}
 
-// 	// Write container data to CSV
-// 	if err := writer.Write([]string{
-// 		container.Name,
-// 		fmt.Sprintf("%d", container.PID),
-// 		container.ContainerID,
-// 		container.WorkDir,
-// 		container.LifeTime,
-// 	}); err != nil {
-// 		logrus.Error("Error writing container data to CSV: ", err)
-// 	}
-// }
+func isPodFileEmpty(file *os.File) bool {
+	fileInfo, err := file.Stat()
+	if err != nil {
+		logrus.Error("Error getting file info: ", err)
+		return false
+	}
+	return fileInfo.Size() == 0
+}
 
-// func prepareOutputFile(path, fileName string) string {
-// 	fullPath := fmt.Sprintf("%s/%s", path, fileName)
-
-// 	if _, err := os.Stat(path); os.IsNotExist(err) {
-// 		if err := os.MkdirAll(path, 0755); err != nil {
-// 			logrus.Error("Error creating results directory: ", err)
-// 			return ""
-// 		}
-// 	}
-
-// 	return fullPath
-// }
-
-// func isFileEmpty(file *os.File) bool {
-// 	fileInfo, err := file.Stat()
-// 	if err != nil {
-// 		logrus.Error("Error getting file info: ", err)
-// 		return false
-// 	}
-// 	return fileInfo.Size() == 0
-// }
-
-// func EscapeContainerName(containerName string) string {
-// 	// Remove the leading '/' if present
-// 	containerName = strings.TrimPrefix(containerName, "/")
-// 	// Escape remaining '/' characters
-// 	return fmt.Sprintf("Cleaned Container Name for Query: %s", strings.ReplaceAll(containerName, "/", `\/`))
-// }
+func EscapePodName(podName string) string {
+	// Remove the leading '/' if present
+	podName = strings.TrimPrefix(podName, "/")
+	// Escape remaining '/' characters
+	return fmt.Sprintf("Cleaned Pod Name for Query: %s", strings.ReplaceAll(podName, "/", `\/`))
+}

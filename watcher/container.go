@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MA-DOS/LowLevelMonitoring/common"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
@@ -34,7 +35,24 @@ type NextflowContainer struct {
 	WorkDir        string    `json:"work_dir"`
 }
 
-func (c *NextflowContainer) GetContainerEvents(containerEventChannel chan<- NextflowContainer) {
+// Ensure NextflowContainer implements the WorkflowEntity interface
+func (c *NextflowContainer) GetStartTime() time.Time {
+	return c.StartTime
+}
+
+func (c *NextflowContainer) GetDieTime() time.Time {
+	return c.DieTime
+}
+
+func (c *NextflowContainer) GetName() string {
+	return c.Name
+}
+
+func (c *NextflowContainer) GetWorkDir() string {
+	return c.WorkDir
+}
+
+func (c *NextflowContainer) GetContainerEvents(containerEventChannel chan<- common.WorkflowEntity) {
 	// Container Client.
 	apiClient, err := client.NewClientWithOpts(client.FromEnv, client.WithVersion("1.49"))
 	if err != nil {
@@ -72,7 +90,7 @@ func (c *NextflowContainer) GetContainerEvents(containerEventChannel chan<- Next
 	wg.Wait()
 }
 
-func processContainerEvent(event events.Message, apiClient *client.Client, re *regexp.Regexp, mu *sync.Mutex, processed map[string]bool, containerPIDs map[string]int, containerEventChannel chan<- NextflowContainer, isStartEvent bool, wg *sync.WaitGroup) {
+func processContainerEvent(event events.Message, apiClient *client.Client, re *regexp.Regexp, mu *sync.Mutex, processed map[string]bool, containerPIDs map[string]int, containerEventChannel chan<- common.WorkflowEntity, isStartEvent bool, wg *sync.WaitGroup) {
 	mu.Lock()
 	if processed[event.Actor.ID] {
 		mu.Unlock()
@@ -133,7 +151,7 @@ func processContainerEvent(event events.Message, apiClient *client.Client, re *r
 					return
 				}
 				mu.Unlock()
-				containerEventChannel <- nextflowContainer
+				containerEventChannel <- &nextflowContainer
 				WriteDiedToOutput(nextflowContainer)
 			}
 		}

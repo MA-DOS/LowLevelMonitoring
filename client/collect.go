@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/MA-DOS/LowLevelMonitoring/watcher"
+	"github.com/MA-DOS/LowLevelMonitoring/common"
 	"github.com/barweiss/go-tuple"
 
 	"github.com/prometheus/client_golang/api"
@@ -19,9 +19,9 @@ import (
 // var resultMatrix model.Matrix
 
 // Using Prometheus API to fetch the monitoring targets.
-func FetchMonitoringTargets(client api.Client, queryIdentifier, query string, workflowContainer watcher.NextflowContainer) (model.Matrix, error) {
+func FetchMonitoringTargets(client api.Client, queryIdentifier, query string, entity common.WorkflowEntity) (model.Matrix, error) {
 	v1api := v1.NewAPI(client)
-	jobQuery := BuildQueryByLabelSelector(query, queryIdentifier, workflowContainer)
+	jobQuery := BuildQueryByLabelSelector(query, queryIdentifier, entity)
 	logrus.Info("Querying Prometheus: ", jobQuery)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -30,9 +30,9 @@ func FetchMonitoringTargets(client api.Client, queryIdentifier, query string, wo
 	// Perform range query
 	// for attempt := 1; attempt <= maxRetries; attempt++ {
 	result, warnings, err := v1api.QueryRange(ctx, jobQuery, v1.Range{
-		Start: workflowContainer.StartTime,                     // Subtract seconds to ensure I get the first sample.
-		End:   workflowContainer.DieTime.Add(10 * time.Second), // Add seconds to ensure I get the last sample.
-		Step:  500 * time.Millisecond,                          // Set the step to 500 milliseconds.
+		Start: entity.GetStartTime(),                     // Subtract seconds to ensure I get the first sample.
+		End:   entity.GetDieTime().Add(10 * time.Second), // Add seconds to ensure I get the last sample.
+		Step:  500 * time.Millisecond,                    // Set the step to 500 milliseconds.
 	})
 
 	if err != nil {
@@ -66,7 +66,7 @@ func FetchMonitoringTargets(client api.Client, queryIdentifier, query string, wo
 }
 
 // Function to take in client configuration and queries to fetch monitoring targets in a thread.
-func FetchMonitoringSources(c *Config, workflowContainer watcher.NextflowContainer, queriesMap map[string]map[string][]tuple.T5[string, string, []string, string, string]) (map[string]map[string]map[string]model.Matrix, map[string][]string, map[string]map[string]string, error) {
+func FetchMonitoringSources(c *Config, entity common.WorkflowEntity, queriesMap map[string]map[string][]tuple.T5[string, string, []string, string, string]) (map[string]map[string]map[string]model.Matrix, map[string][]string, map[string]map[string]string, error) {
 	resultsWithCategories := make(map[string]map[string]map[string]model.Matrix)
 	queryMetaInfo := make(map[string][]string)
 	queryUnitInfo := make(map[string]map[string]string)
@@ -90,7 +90,7 @@ func FetchMonitoringSources(c *Config, workflowContainer watcher.NextflowContain
 				wg.Add(1)
 
 				queryIdentifier := queryList[0].V4
-				go fetchQuery(c, target, dataSource, queryIdentifier, query, workflowContainer, resultsWithCategories, &mu, &wg)
+				go fetchQuery(c, target, dataSource, queryIdentifier, query, entity, resultsWithCategories, &mu, &wg)
 			}
 		}
 	}
@@ -98,7 +98,7 @@ func FetchMonitoringSources(c *Config, workflowContainer watcher.NextflowContain
 	return resultsWithCategories, queryMetaInfo, queryUnitInfo, nil
 }
 
-func fetchQuery(c *Config, target, dataSource, queryIdentifier string, query tuple.T5[string, string, []string, string, string], workflowContainer watcher.NextflowContainer, mapTargetSourceName map[string]map[string]map[string]model.Matrix, mu *sync.Mutex, wg *sync.WaitGroup) {
+func fetchQuery(c *Config, target, dataSource, queryIdentifier string, query tuple.T5[string, string, []string, string, string], entity common.WorkflowEntity, mapTargetSourceName map[string]map[string]map[string]model.Matrix, mu *sync.Mutex, wg *sync.WaitGroup) {
 	defer wg.Done()
 	client, err := NewFetchClient(c)
 	if err != nil {
@@ -107,7 +107,7 @@ func fetchQuery(c *Config, target, dataSource, queryIdentifier string, query tup
 	}
 
 	// Insert the range for the query by event in the container engine.
-	fetcher, err := FetchMonitoringTargets(client, queryIdentifier, query.V2, workflowContainer)
+	fetcher, err := FetchMonitoringTargets(client, queryIdentifier, query.V2, entity)
 	if err != nil {
 		logrus.Error("Error fetching monitoring targets: ", err)
 		return
@@ -130,20 +130,18 @@ func fetchQuery(c *Config, target, dataSource, queryIdentifier string, query tup
 }
 
 // Dynamically format the PromQL query based on the available identifiers.
-func BuildQueryByLabelSelector(query, queryIdentifier string, workflowContainer watcher.NextflowContainer) string {
+func BuildQueryByLabelSelector(query, queryIdentifier string, entity common.WorkflowEntity) string {
 	switch queryIdentifier {
 	case "name":
-		return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, workflowContainer.Name)
+		return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, entity.GetName())
 	case "path":
-		return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, workflowContainer.ContainerID)
+		return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, entity.GetWorkDir())
 	case "work_dir":
-		return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, workflowContainer.WorkDir)
-	case "groupname":
-		return fmt.Sprintf(`%s{%s="%v"}`, query, queryIdentifier, workflowContainer.PID)
+		return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, entity.GetWorkDir())
 	case "container_names":
-		return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, workflowContainer.Name)
+		return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, entity.GetName())
 	case "container_name":
-		return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, workflowContainer.Name)
+		return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, entity.GetName())
 	case "instance":
 		// This is a temporary workaround as the snmp does not hold any container related identifiers.
 		return fmt.Sprintf(`%s{%s="%s"}`, query, queryIdentifier, "powermeter04.cit.tu-berlin.de")
