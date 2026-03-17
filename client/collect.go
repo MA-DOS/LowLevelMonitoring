@@ -22,7 +22,7 @@ import (
 func FetchMonitoringTargets(client api.Client, queryIdentifier, query string, entity common.WorkflowEntity) (model.Matrix, error) {
 	v1api := v1.NewAPI(client)
 	jobQuery := BuildQueryByLabelSelector(query, queryIdentifier, entity)
-	logrus.Info("Querying Prometheus: ", jobQuery)
+	logrus.Infof("Querying Prometheus with query: %s, Start Time: %s, End Time: %s, Step: %s", jobQuery, entity.GetStartTime().Format(time.RFC3339), entity.GetDieTime().Add(10*time.Second).Format(time.RFC3339), "500ms")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -71,6 +71,8 @@ func FetchMonitoringSources(c *Config, entity common.WorkflowEntity, queriesMap 
 	queryMetaInfo := make(map[string][]string)
 	queryUnitInfo := make(map[string]map[string]string)
 
+	logrus.Info("ENTERED")
+
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
@@ -90,6 +92,7 @@ func FetchMonitoringSources(c *Config, entity common.WorkflowEntity, queriesMap 
 				wg.Add(1)
 
 				queryIdentifier := queryList[0].V4
+				logrus.Infof("Preparing to execute query for Target: %s, DataSource: %s, Query: %s", target, dataSource, query.V2)
 				go fetchQuery(c, target, dataSource, queryIdentifier, query, entity, resultsWithCategories, &mu, &wg)
 			}
 		}
@@ -109,7 +112,7 @@ func fetchQuery(c *Config, target, dataSource, queryIdentifier string, query tup
 	// Insert the range for the query by event in the container engine.
 	fetcher, err := FetchMonitoringTargets(client, queryIdentifier, query.V2, entity)
 	if err != nil {
-		logrus.Error("Error fetching monitoring targets: ", err)
+		logrus.Errorf("Error fetching monitoring targets for Target: %s, DataSource: %s, Query: %s - %v", target, dataSource, query.V2, err)
 		return
 	}
 
@@ -125,7 +128,7 @@ func fetchQuery(c *Config, target, dataSource, queryIdentifier string, query tup
 	if _, exists := mapTargetSourceName[target][dataSource][query.V1]; !exists {
 		mapTargetSourceName[target][dataSource][query.V1] = fetcher
 	} else {
-		logrus.Warn("Query already exists for target: ", target, " dataSource: ", dataSource, " query: ", query.V1)
+		logrus.Warnf("Query already exists for Target: %s, DataSource: %s, Query: %s", target, dataSource, query.V1)
 	}
 }
 

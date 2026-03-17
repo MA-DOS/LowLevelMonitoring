@@ -131,13 +131,13 @@ monitoring_targets:
     #         - name: gude_current_ma
     #           query: gude_current_ma
     #           unit: ma
-    energy:
-      enabled: true
-      data_sources:
-        - source: Kepler
-          labels: [pod_name, node_name, zone]
-          identifier: pod_name
-          metrics:
-            - name: kepler_pod_cpu_watts
-              query: kepler_pod_cpu_watts
-              unit: toBeFoundOut
+  energy:
+    enabled: true
+    data_sources:
+      - source: Kepler
+        labels: [pod_name, node_name, zone]
+        identifier: pod_name
+        metrics:
+          - name: kepler_pod_cpu_watts
+            query: kepler_pod_cpu_watts
+            unit: toBeFoundOut
